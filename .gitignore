@@ -1,0 +1,10 @@
+# Python specific ignores
+*.pyc
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.venv/  # Ignore virtual environments if they are inside project subdirectories
+venv/   # Often directly named 'venv'
+
+# Firebase Admin SDK Credentials - ABSOLUTELY DO NOT COMMIT THIS FILE!
+**/serviceAccountKey.json 
