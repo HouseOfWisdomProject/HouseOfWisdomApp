@@ -41,65 +41,78 @@ def home():
 
 @app.route('/register', methods=['POST'])
 def register_user():
-   """
-   Handles user registration for Student, Tutor, Staff, Parent accounts.
-   Expects JSON with 'email', 'password', and 'role'.
-   Implements Registration, Authentication, and Role-based access control (F1).
-   """
-   data = request.get_json()
-   email = data.get('email')
-   password = data.get('password')
-   # Default role is 'student' if not provided
-   role = data.get('role', 'student')
+    """
+    Handles user registration and creates a Firestore document
+    that matches the User Account DB Schema.
+    """
+    data = request.get_json()
+    email = data.get('email')
+    password = data.get('password')
+    # Get schema fields from the request
+    firstName = data.get('firstName')
+    lastName = data.get('lastName')
+    role = data.get('role', 'student') # Default role is 'student'
 
+    if not all([email, password, firstName, lastName]):
+        return jsonify({"error": "Email, password, firstName, and lastName are required"}), 400
 
-   if not email or not password:
-       return jsonify({"error": "Email and password are required"}), 400
+    try:
+        # Create user in Firebase Authentication
+        user = auth_service.create_user(
+            email=email,
+            password=password,
+            display_name=f"{firstName} {lastName}" # Set display name in Auth
+        )
+        # Set custom claims for role-based access control
+        auth_service.set_custom_user_claims(user.uid, {'role': role})
 
+        # --- This section now implements your DB Schema ---
+        # Start with the base user fields shared by all roles
+        user_data = {
+            'email': email,
+            'firstName': firstName,
+            'lastName': lastName,
+            'role': role,
+            'created_at': firestore.SERVER_TIMESTAMP
+        }
 
-   try:
-       # Create user in Firebase Authentication
-       user = auth_service.create_user( # Changed auth.create_user to auth_service.create_user
-           email=email,
-           password=password,
-           email_verified=False, # Can implement email verification later
-           disabled=False
-       )
-       # Set custom claims for role-based access control (F1)
-       # This is how roles like Student, Tutor, Staff, Parent are managed for access
-       auth_service.set_custom_user_claims(user.uid, {'role': role})
-       print(f"User {user.uid} created with role: {role}")
+        # Add role-specific fields based on the schema
+        if role == 'student':
+            user_data.update({
+                'gradeLevel': data.get('gradeLevel', None), # Expect gradeLevel from client
+                'parentContact': data.get('parentContact', ''),
+                'tutoringLocation': [],
+                'topics': []
+            })
+        elif role == 'tutor':
+            user_data.update({
+                'googleMeetsLink': '',
+                'tutoringLocation': [],
+                'topics': []
+            })
+        elif role == 'staff':
+            user_data.update({
+                'tutoringLocation': [],
+                'permissions': []
+            })
+        elif role == 'admin':
+            user_data.update({
+                'permissions': []
+            })
 
+        # Create the document in Firestore
+        db.collection('users').document(user.uid).set(user_data)
 
-       # Store user data in Firestore for profile management and initial schema
-       # This aligns with storing login info for different users
-       # And supports creation of tutor profiles by admin
-       user_ref = db.collection('users').document(user.uid)
-       user_ref.set({
-           'email': email,
-           'role': role, # Store role in Firestore document for easy querying/display
-           'created_at': firestore.SERVER_TIMESTAMP,
-           'profile': { # Initial profile fields, to be expanded as per Tutor Profile (F33)
-               'name': '',
-               'pronouns': '',
-               'description': ''
-           }
-       })
-       print(f"User profile created in Firestore for {user.uid}")
+        return jsonify({
+            "message": "User registered successfully",
+            "uid": user.uid,
+            "role": role
+        }), 201
 
-
-       return jsonify({
-           "message": "User registered successfully",
-           "uid": user.uid,
-           "role": role
-       }), 201
-   # Specific Firebase Auth errors can be caught for more granular responses
-   except auth.EmailAlreadyExistsError:
-       return jsonify({"error": "Email address already in use"}), 409 # Conflict status code
-   except firebase_exceptions.FirebaseError as e: # Catch other Firebase errors
-       return jsonify({"error": f"Firebase error: {e}"}), 500
-   except Exception as e: # Catch any other unexpected errors
-       return jsonify({"error": str(e)}), 500
+    except auth.EmailAlreadyExistsError:
+        return jsonify({"error": "Email address already in use"}), 409
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 
@@ -179,54 +192,35 @@ def get_user_profile(uid):
 
 @app.route('/update_profile/<uid>', methods=['PUT'])
 def update_user_profile(uid):
-   """
-   Updates a user's profile in Firestore.
-   This would be used by tutors to edit their profile.
-   Requires authentication and authorization (e.g., verify ID Token to ensure user is editing their own profile or is an admin).
-   """
-   # In production, verify the ID token from the request header (e.g., 'Authorization: Bearer <ID_TOKEN>')
-   # and check if `request.auth.uid == uid` or if the user has the 'admin' role.
+    """
+    Updates a user's profile in Firestore according to the DB schema.
+    This is flexible and updates any valid top-level field provided.
+    Requires authentication and authorization.
+    """
+    # In production, you must verify the ID token from the request header
+    # to ensure the user is authorized to make this change.
 
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No data provided for update"}), 400
 
-   data = request.get_json()
-   if not data:
-       return jsonify({"error": "No data provided for update"}), 400
+    user_ref = db.collection('users').document(uid)
 
+    # For security, prevent users from changing their role or email via this endpoint.
+    # These should be handled by a separate, admin-only function if needed.
+    data.pop('role', None)
+    data.pop('email', None)
 
-   user_ref = db.collection('users').document(uid)
-   try:
-       # Construct update_data for specific fields within the 'profile' map
-       update_data = {}
-       if 'name' in data:
-           update_data['profile.name'] = data['name'] # Update nested field
-       if 'pronouns' in data:
-           update_data['profile.pronouns'] = data['pronouns']
-       if 'description' in data:
-           update_data['profile.description'] = data['description']
-       # Add other profile fields here as needed (e.g., 'picture_url' for Tutor Profile F33)
-       if 'google_meets_link' in data: # Example for Online Tutoring (F6)
-           update_data['google_meets_link'] = data['google_meets_link']
-           # This should ideally only be updatable by an Admin or the Tutor themselves
+    if not data:
+        return jsonify({"error": "No valid fields to update. Note: 'role' and 'email' cannot be changed here."}), 400
 
-
-       # If the 'role' is intended to be updated via this endpoint (e.g., by an Admin),
-       # you would need to use auth_service.set_custom_user_claims() as well,
-       # and ensure proper authorization for role changes.
-       # Example: if 'role' in data and current_user_is_admin:
-       #    auth_service.set_custom_user_claims(uid, {'role': data['role']})
-       #    update_data['role'] = data['role'] # Also update Firestore for consistency
-
-
-       if not update_data:
-           return jsonify({"message": "No valid profile fields to update"}), 200
-
-
-       user_ref.update(update_data) # Use .update() for partial updates
-       return jsonify({"message": f"Profile for {uid} updated successfully"}), 200
-   except firebase_exceptions.FirebaseError as e:
-       return jsonify({"error": f"Firebase error during update: {e}"}), 500
-   except Exception as e:
-       return jsonify({"error": str(e)}), 500
+    try:
+        # This now directly updates any top-level fields sent in the request.
+        # It's now aligned with your schema.
+        user_ref.update(data)
+        return jsonify({"message": f"Profile for {uid} updated successfully"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 
