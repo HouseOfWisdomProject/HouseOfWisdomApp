@@ -2,8 +2,11 @@ import os
 from flask import Flask, request, jsonify
 import firebase_admin
 import requests
+import smtplib
+import ssl
 from firebase_admin import credentials, auth, firestore
 from firebase_admin import exceptions as firebase_exceptions # Import Firebase specific exceptions
+from email.message import EmailMessage
 FIREBASE_API_KEY = 'AIzaSyCii0tWtKfl1AfuYicA5Pf986jlCYDJZb4'  # Get this from Firebase Console > Project Settings > General
 
 
@@ -223,6 +226,68 @@ def update_user_profile(uid):
         return jsonify({"error": str(e)}), 500
 
 
+@app.route('/forgot-password', methods=['POST'])
+def forgot_password():
+    """
+    Handles a password reset request.
+    Generates a password reset link and sends it to the user's email.
+    """
+    data = request.get_json()
+    email = data.get('email')
+
+    if not email:
+        return jsonify({"error": "Email is required"}), 400
+
+    try:
+        # Generate password reset link
+        link = auth.generate_password_reset_link(email)
+
+        # --- Send Email ---
+        # For this to work, you need to configure an email sender.
+        # This example uses Gmail's SMTP server.
+        # IMPORTANT: For security, use an "App Password" for your Gmail account, not your regular password.
+        # You can generate an App Password here: https://myaccount.google.com/apppasswords
+        email_sender = 'your_email@gmail.com'  # Replace with your email
+        email_password = 'your_app_password'  # Replace with your App Password
+        email_receiver = email
+
+        subject = "Password Reset for House of Wisdom App"
+        body = f"""
+        Hello,
+
+        You requested a password reset for your House of Wisdom account.
+        Please click the link below to reset your password:
+        {link}
+
+        If you did not request this, please ignore this email.
+
+        Thank you,
+        The House of Wisdom Team
+        """
+
+        em = EmailMessage()
+        em['From'] = email_sender
+        em['To'] = email_receiver
+        em['Subject'] = subject
+        em.set_content(body)
+
+        # Add SSL (layer of security)
+        context = ssl.create_default_context()
+
+        # Log in and send the email
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465, context=context) as smtp:
+            smtp.login(email_sender, email_password)
+            smtp.sendmail(email_sender, email_receiver, em.as_string())
+
+        return jsonify({"message": "A password reset link has been sent to your email."}), 200
+
+    except auth.UserNotFoundError:
+        # It's good practice not to reveal if an email is registered or not for security reasons.
+        return jsonify({"message": "If your email is registered, you will receive a password reset link."}), 200
+    except Exception as e:
+        # Log the error for debugging, but don't expose it to the user.
+        print(f"Error in forgot_password: {e}")
+        return jsonify({"error": "An error occurred while trying to reset the password. Please try again later."}), 500
 
 
 # --- Running the Flask App ---
