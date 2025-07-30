@@ -12,4 +12,4 @@
 #of the shift.
 
 #get_location_roster(location): This function will fetch the list of staff members for a given location
-#to be displayed on the Junior PM's device.
+#to be displayed on the Senior PM's device.
