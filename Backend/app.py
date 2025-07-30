@@ -7,7 +7,8 @@ import ssl
 from email.message import EmailMessage
 from firebase_admin import credentials, auth, firestore
 from firebase_admin import exceptions as firebase_exceptions # Import Firebase specific exceptions
-FIREBASE_API_KEY = 'AIzaSyCii0tWtKfl1AfuYicA5Pf986jlCYDJZb4'  # Get this from Firebase Console > Project Settings > General
+load_dotenv() # Call this early in your script
+FIREBASE_API_KEY = os.getenv('FIREBASE_API_KEY') # Get the API key from the environment variable 
 
 app = Flask(__name__)
 
@@ -190,7 +191,10 @@ def login_user():
 
    if not email or not password:
        return jsonify({"error": "Email and password are required"}), 400
-
+   
+    # CRITICAL: Check if FIREBASE_API_KEY is available
+   if not FIREBASE_API_KEY:
+       return jsonify({"error": "Firebase Web API Key is not configured on the server."}), 500
 
    try:
        # Call Firebase REST API to verify password
