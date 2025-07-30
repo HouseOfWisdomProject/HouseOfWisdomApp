@@ -88,15 +88,18 @@ def register_user():
                 'tutoringLocation': [],
                 'topics': []
             })
-        elif role == 'staff':
+        elif role == 'seniorProjectManager':
             user_data.update({
                 'tutoringLocation': [],
-                'permissions': []
+            })
+        elif role == 'juniorProjectManager':
+            user_data.update({
+                'tutoringLocation': [],
             })
         elif role == 'admin':
             user_data.update({
-                'permissions': []
             })
+        
 
         # Create the document in Firestore
         db.collection('users').document(user.uid).set(user_data)
@@ -293,4 +296,16 @@ if __name__ == '__main__':
     app.run(debug=True, port=5000)
     # For production deployment on PythonAnywhere, you'll use a WSGI server like Gunicorn or uWSGI
     # (e.g., from your PythonAnywhere web app settings, configure your WSGI file to point to 'app').
-    
+
+#Additions for the clock-in/out system
+
+#@app.route('/roster/<location>', methods=['GET']): This new route will handle requests for the list of
+#staff members at a specific location. It will call the get_location_roster function from the clock_in_out.py 
+#file and return the list as a JSON response.
+
+#@app.route('/clock_in', methods=['POST']): This route will handle clock-in requests. It will receive the user 
+#ID and location from the request body, call the clock_in function from clock_in_out.py, and then trigger the 
+#update_spreadsheet function in google_sheets.py to log the event in the appropriate Google Sheet.
+
+#@app.route('/clock_out', methods=['POST']): This route will handle clock-out requests. It will receive the 
+#user ID and location from the request body, call the clock_out function, and update the corresponding Google Sheet.
