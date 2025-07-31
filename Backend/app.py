@@ -335,12 +335,13 @@ def handle_clock_in():
     data = request.get_json()
     user_id = data.get('user_id')
     location = data.get('location')
+    role = data.get('role')
 
     if not user_id or not location:
         return jsonify({"error", "user id and location are required"}), 400
         
     try:
-        event = clock_in(user_id, location)
+        event = clock_in(user_id, location, role)
         update_spreadsheet(location, event)
         return jsonify({"message": "Clock-in successful", "data": event}), 200
     except Exception as e:
@@ -354,15 +355,17 @@ def handle_clock_out():
     data = request.get.json()
     user_id = data.het('user_id')
     location = data.get('location')
+    role = data.get('role')
     
     if not user_id or not location:
         return jsonify({"error","user id and location are required "}), 400
     try:
-        event = clock_out(user_id, location)
+        event = clock_out(user_id, location, role)
         update_spreadsheet(location, event)
         return jsonify({"message": "Clock-out successful", "data": event}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
 #@app.route('/work_hours', methods=['GET'])
 #retrieves work hours for a specific user and date from Firestore.
 #This route is used to fetch time-tracking data for reporting purposes.
