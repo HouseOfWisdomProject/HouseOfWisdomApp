@@ -1,4 +1,5 @@
 import os
+from dotenv import load_dotenv
 from flask import Flask, request, jsonify
 import firebase_admin
 import requests
@@ -7,7 +8,11 @@ import ssl
 from email.message import EmailMessage
 from firebase_admin import credentials, auth, firestore
 from firebase_admin import exceptions as firebase_exceptions # Import Firebase specific exceptions
-load_dotenv() # Call this early in your script
+from locations import locations #list of locations
+from clock_in_out import get_location_roster, clock_in, clock_out #import clock-in/out functions
+from google_sheets import update_spreadsheet #import Google Sheets update function
+# Load environment variables from .env file
+load_dotenv() # Call this early in your script 
 FIREBASE_API_KEY = os.getenv('FIREBASE_API_KEY') # Get the API key from the environment variable 
 
 app = Flask(__name__)
@@ -191,11 +196,11 @@ def login_user():
 
    if not email or not password:
        return jsonify({"error": "Email and password are required"}), 400
-   
+
     # CRITICAL: Check if FIREBASE_API_KEY is available
    if not FIREBASE_API_KEY:
        return jsonify({"error": "Firebase Web API Key is not configured on the server."}), 500
-
+       
    try:
        # Call Firebase REST API to verify password
        url = url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={FIREBASE_API_KEY}"
@@ -265,6 +270,14 @@ def update_user_profile(uid):
     try:
         # Construct update_data for specific fields within the 'profile' map
         update_data = {}
+        
+        if 'tutoringLocation' in data:
+            new_locations =  data['tutoringLocation']
+            #Validate locations against the predefned list
+            if isinstance(new_locations, list) and all(loc in locations for loc in new_locations):
+                update_data['tutoringLocation'] = new_locations
+            else:
+                 return jsonify({"error": "Invalid data provided for tutoringLocation. Must be a list of valid locations."}), 400
         if 'name' in data:
             update_data['profile.name'] = data['name'] # Update nested field
         if 'pronouns' in data:
@@ -306,10 +319,65 @@ if __name__ == '__main__':
 #@app.route('/roster/<location>', methods=['GET']): This new route will handle requests for the list of
 #staff members at a specific location. It will call the get_location_roster function from the clock_in_out.py 
 #file and return the list as a JSON response.
+@app.route('/roster/<location>', methods = ['GET'])
+def get_roster (location):
+    try: 
+        roster = get_location_roster(location)
+        return jsonify(roster), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 #@app.route('/clock_in', methods=['POST']): This route will handle clock-in requests. It will receive the user 
 #ID and location from the request body, call the clock_in function from clock_in_out.py, and then trigger the 
 #update_spreadsheet function in google_sheets.py to log the event in the appropriate Google Sheet.
+@app.route('/clock_in', methods = ['POST'])
+def handle_clock_in():
+    data = request.get_json()
+    user_id = data.get('user_id')
+    location = data.get('location')
+
+    if not user_id or not location:
+        return jsonify({"error", "user id and location are required"}), 400
+        
+    try:
+        event = clock_in(user_id, location)
+        update_spreadsheet(location, event)
+        return jsonify({"message": "Clock-in successful", "data": event}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
 
 #@app.route('/clock_out', methods=['POST']): This route will handle clock-out requests. It will receive the 
 #user ID and location from the request body, call the clock_out function, and update the corresponding Google Sheet.
+@app.route('/clock_out', methods=['POST'])
+def handle_clock_out():
+    data = request.get.json()
+    user_id = data.het('user_id')
+    location = data.get('location')
+    
+    if not user_id or not location:
+        return jsonify({"error","user id and location are required "}), 400
+    try:
+        event = clock_out(user_id, location)
+        update_spreadsheet(location, event)
+        return jsonify({"message": "Clock-out successful", "data": event}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+#@app.route('/work_hours', methods=['GET'])
+#retrieves work hours for a specific user and date from Firestore.
+#This route is used to fetch time-tracking data for reporting purposes.
+@app.route('/work_hours', methods=['GET'])
+def get_work_hours():
+    user_id = request.args.get('user_id')
+    date = request.args.get('date')
+
+    if not user_id or not date:
+        return jsonify({"error": "user_id and date are required"}), 400
+        try:
+            # Query work hours for the user on the specified date
+            work_ref = db.collections('work_hours').where('user_id', '==', user_id).where('date', '==', date).get()
+            work_hours = [doc.to_dict() for doc in work_ref]
+
+            return jsonify(work_hours), 200
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
