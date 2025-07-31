@@ -2,6 +2,10 @@ from datetime import datetime
 from app import db
 from firebase_admin import firestore
 
+TIMESTAMP_FILE = "sheet_timestamps.json"
+DAYS_INTERVAL = 15
+EMAIL_TO_SHARE = "howwa2020@gmail.com"
+
 def get_current_timestamp(): 
     return datetime.pstnow().isoformat()
 
@@ -35,19 +39,19 @@ def clock_out (user_id, location, role):
 #to be displayed on the Senior PM's device.
 def get_location_roster(location):
     db = firestore.client()
-    location_query = db.where("tutoringLocation", "arrayContains", location)
-    admin_query = db.where("role", "==", "admin")
-
-    location_docs = location_query.queryStream()
-    admin_docs = admin_query.queryStream()
-
     user_map = {}
+
+    location_query = db.collection('users').where("tutoringLocation", "arrayContains", location)
+    location_docs = location_query.queryStream()
+
     for doc in location_docs:
-        user_map[doc.id] = doc.to_dict()
+        user_map[doc.id] = doc.to_dict()    
+
+    admin_query = db.collection('users').where("role", "==", "admin")
+    admin_docs = admin_query.queryStream()
     
     for doc in admin_docs:
-        user_map[doc.id] = doc.to_dict()
+        if doc.id not in user_map:
+            user_map[doc.id] = doc.to_dict()
 
-    staff_list = list(user_map.values())
-    return staff_list
-
+    return list(user_map.values())
