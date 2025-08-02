@@ -34,7 +34,6 @@ def get_gspread_client():
         print(f"Authentication failed: {e}")
         return None
 
-
 def update_spreadsheet(location, data):
     """Upadtes the Google Sheet for the specified location with the provided data.
     
@@ -56,13 +55,15 @@ def update_spreadsheet(location, data):
             worksheet = workbook.worksheet(sheet_name)
         
         except gspread.exceptions.WorksheetNotFound():
-            worksheet = create_new_sheet(workbook, sheet_name)
+            worksheet = workbook.add_worksheet(title = sheet_name, rows = "250", cols = "10")
+            header = ["Location", "Role", "First Name", "Last Name", "Timestamp", "Status"]
+            worksheet.append_row(header, value_input_option='USER ENTERED')
             
         row = [
             location,
             data.get("role", ""),
             data.get("firstName", ""),
-            data.get("lastNmae", "")
+            data.get("lastName", ""),
             data.get("timestamp"),
             data.get("status")
         ]
@@ -73,8 +74,6 @@ def update_spreadsheet(location, data):
     except Exception as e:
         print(f"Error updating spreadsheet for location '{location}': {e}")
 
-
-#Code that creates a new sheet every 15 days
 def create_new_sheet(workbook, sheet_name):
     """
     Creates a new worksheet within the given workbook, adds a header, and returns it.
@@ -101,3 +100,81 @@ def create_new_sheet(workbook, sheet_name):
         print(f"Failed to create new worksheet '{sheet_name}': {e}")
         return None
 
+# In google_sheets.py
+def generate_15_day_location_summary(location):
+    """
+    Calculates total work hours for each user at a specific location over the
+    last 15 days and writes a summary report to a new Google Sheet.
+    """
+    print(f"Generating 15-day summary report for {location}...")
+    
+    # 1. Define the 15-day date range (MODIFIED LOGIC)
+    # This logic now matches the update_spreadsheet function.
+    today = datetime.now().date()
+    start_date = today - timedelta(days = (today.day - 1) % 15)
+    end_date = start_date + timedelta(days=14)
+    
+    try:
+        from firebase_config import db 
+
+        # ... (The rest of the function remains the same) ...
+        users_query = db.collection('users').where('tutoringLocation', 'array-contains', location).stream()
+        location_users = {user.id: user.to_dict() for user in users_query}
+        report_data = []
+
+        for user_id, user_data in location_users.items():
+            total_duration = timedelta()
+            shifts_ref = db.collection('shifts').where('user_id', '==', user_id).where('location', '==', location).order_by('timestamp').stream()
+            
+            clock_in_time = None
+            for shift in shifts_ref:
+                shift_data = shift.to_dict()
+                event_time = datetime.fromisoformat(shift_data.get("timestamp"))
+
+                if not (start_date <= event_time.date() <= end_date):
+                    continue
+
+                if shift_data.get("event") == 'clock-in':
+                    clock_in_time = event_time
+                elif shift_data.get("event") == 'clock-out' and clock_in_time:
+                    duration = event_time - clock_in_time
+                    total_duration += duration
+                    clock_in_time = None 
+
+            if total_duration.total_seconds() > 0:
+                total_hours = round(total_duration.total_seconds() / 3600, 2)
+                report_data.append([
+                    user_data.get('firstName', ''),
+                    user_data.get('lastName', ''),
+                    user_data.get('role', ''),
+                    total_hours
+                ])
+
+        if not report_data:
+            print(f"No work hour data found for {location} in the period starting {start_date}.")
+            return {"message": f"No work hour data found for {location} in the period."}
+
+        # This part correctly creates a sheet name based on the date bucket.
+        client = get_gspread_client()
+        if not client:
+            raise Exception("Could not connect to Google Sheets.")
+            
+        workbook = client.open("HOW-15-Day-Summary")
+        sheet_name = f"{location} Summary - {start_date.strftime('%Y-%m-%d')}"
+        
+        try:
+            worksheet = workbook.worksheet(sheet_name)
+            worksheet.clear() 
+        except gspread.exceptions.WorksheetNotFound:
+            worksheet = workbook.add_worksheet(title=sheet_name, rows="100", cols="10")
+        
+        header = ["First Name", "Last Name", "Role", "Total Hours (15-day Period)"]
+        worksheet.append_row(header)
+        worksheet.append_rows(report_data)
+
+        print(f"Successfully generated summary for {location} in sheet: {sheet_name}")
+        return {"message": f"Report successfully generated for {location}."}
+
+    except Exception as e:
+        print(f"An error occurred during report generation for {location}: {e}")
+        raise
