@@ -1,47 +1,34 @@
 import os
 from dotenv import load_dotenv
 from flask import Flask, request, jsonify
-import firebase_admin
 import requests
 import smtplib
 import ssl
 from email.message import EmailMessage
-from firebase_admin import credentials, auth, firestore
-from firebase_admin import exceptions as firebase_exceptions # Import Firebase specific exceptions
-from locations import locations #list of locations
-from clock_in_out import get_location_roster, clock_in, clock_out #import clock-in/out functions
-from google_sheets import update_spreadsheet #import Google Sheets update function
+from firebase_admin import auth, exceptions as firebase_exceptions
+from locations import locations
+from clock_in_out import get_location_roster, clock_in, clock_out
+from logging_google_sheets import update_spreadsheet, generate_15_day_location_summary
+from firebase_config import db  
+from datetime import datetime
+from firebase_admin import firestore
+from attendance import get_student_list, take_attendance, edit_attendance, attendance_count
+from attendance_google_sheet import micro_attendance, macro_attendance
+
 # Load environment variables from .env file
-load_dotenv() # Call this early in your script 
-FIREBASE_API_KEY = os.getenv('FIREBASE_API_KEY') # Get the API key from the environment variable 
+load_dotenv()
+FIREBASE_API_KEY = os.getenv('FIREBASE_API_KEY')
 
 app = Flask(__name__)
 
-# --- Firebase Initialization ---
-# Path to your downloaded service account key JSON file
-# This file contains your project's credentials. Keep it secure!
-# For production deployment (e.g., on PythonAnywhere), store this path or the key content
-# in environment variables, not directly in code.
-service_account_key_path = os.path.join(os.path.dirname(__file__), 'serviceAccountKey.json')
-
-try:
-    cred = credentials.Certificate(service_account_key_path)
-    firebase_admin.initialize_app(cred)
-    db = firestore.client() # Initialize Firestore client
-    auth_service = auth # Assign auth module to a variable for consistent use
-    print("Firebase Admin SDK initialized successfully for the app.")
-except Exception as e:
-    print(f"Error initializing Firebase Admin SDK for the app: {e}")
-    # In a real app, you might use a logging library here.
-    # If Firebase initialization fails, the app cannot function.
-    exit(1) # Exit if Firebase fails to initialize
+# The Firebase initialization code has been moved to firebase_config.py
+# to prevent circular imports.
 
 # --- Flask Routes for User Account System (F1) ---
 
 @app.route('/')
 def home():
     return "Welcome to the House of Wisdom Tutoring App Backend!"
-
 
 @app.route('/register', methods=['POST'])
 def register_user():
@@ -52,7 +39,6 @@ def register_user():
     data = request.get_json()
     email = data.get('email')
     password = data.get('password')
-    # Get schema fields from the request
     firstName = data.get('firstName')
     lastName = data.get('lastName')
     role = data.get('role', 'student') # Default role is 'student'
@@ -62,16 +48,15 @@ def register_user():
 
     try:
         # Create user in Firebase Authentication
-        user = auth_service.create_user(
+        user = auth.create_user(
             email=email,
             password=password,
             display_name=f"{firstName} {lastName}" # Set display name in Auth
         )
         # Set custom claims for role-based access control
-        auth_service.set_custom_user_claims(user.uid, {'role': role})
+        auth.set_custom_user_claims(user.uid, {'role': role})
 
         # --- This section now implements your DB Schema ---
-        # Start with the base user fields shared by all roles
         user_data = {
             'email': email,
             'firstName': firstName,
@@ -80,10 +65,9 @@ def register_user():
             'created_at': firestore.SERVER_TIMESTAMP
         }
 
-        # Add role-specific fields based on the schema
         if role == 'student':
             user_data.update({
-                'gradeLevel': data.get('gradeLevel', None), # Expect gradeLevel from client
+                'gradeLevel': data.get('gradeLevel', None),
                 'parentContact': data.get('parentContact', ''),
                 'tutoringLocation': [],
                 'topics': []
@@ -94,19 +78,11 @@ def register_user():
                 'tutoringLocation': [],
                 'topics': []
             })
-        elif role == 'seniorProjectManager':
+        elif role in ['seniorProjectManager', 'juniorProjectManager']:
             user_data.update({
                 'tutoringLocation': [],
-            })
-        elif role == 'juniorProjectManager':
-            user_data.update({
-                'tutoringLocation': [],
-            })
-        elif role == 'admin':
-            user_data.update({
             })
         
-
         # Create the document in Firestore
         db.collection('users').document(user.uid).set(user_data)
 
@@ -125,7 +101,6 @@ def register_user():
 def forgot_password():
     """
     Handles a password reset request.
-    Generates a password reset link and sends it to the user's email.
     """
     data = request.get_json()
     email = data.get('email')
@@ -134,16 +109,11 @@ def forgot_password():
         return jsonify({"error": "Email is required"}), 400
 
     try:
-        # Generate password reset link
         link = auth.generate_password_reset_link(email)
-
-        # --- Send Email ---
-        # For this to work, you need to configure an email sender.
-        # This example uses Gmail's SMTP server.
-        # IMPORTANT: For security, use an "App Password" for your Gmail account, not your regular password.
-        # You can generate an App Password here: https://myaccount.google.com/apppasswords
-        email_sender = 'ayaank1532@gmail.com'  # Replace with your email
-        email_password = 'voye yncj ftiq neav'  # Replace with your App Password
+        
+        # Email sending logic...
+        email_sender = 'ayaank1532@gmail.com'
+        email_password = 'voye yncj ftiq neav' # Consider using environment variables for this
         email_receiver = email
 
         subject = "Password Reset for House of Wisdom App"
@@ -166,10 +136,7 @@ def forgot_password():
         em['Subject'] = subject
         em.set_content(body)
 
-        # Add SSL (layer of security)
         context = ssl.create_default_context()
-
-        # Log in and send the email
         with smtplib.SMTP_SSL('smtp.gmail.com', 465, context=context) as smtp:
             smtp.login(email_sender, email_password)
             smtp.sendmail(email_sender, email_receiver, em.as_string())
@@ -177,42 +144,37 @@ def forgot_password():
         return jsonify({"message": "A password reset link has been sent to your email."}), 200
 
     except auth.UserNotFoundError:
-        # It's good practice not to reveal if an email is registered or not for security reasons.
         return jsonify({"message": "If your email is registered, you will receive a password reset link."}), 200
     except Exception as e:
-        # Log the error for debugging, but don't expose it to the user.
         print(f"Error in forgot_password: {e}")
-        return jsonify({"error": "An error occurred while trying to reset the password. Please try again later."}), 500
+        return jsonify({"error": "An error occurred while trying to reset the password."}), 500
+
 @app.route('/login', methods=['POST'])
 def login_user():
    """
    Logs in a user using email and password via Firebase Auth REST API.
-   Returns Firebase ID token if login is successful.
    """
    data = request.get_json()
    email = data.get('email')
    password = data.get('password')
 
-
    if not email or not password:
        return jsonify({"error": "Email and password are required"}), 400
 
-    # CRITICAL: Check if FIREBASE_API_KEY is available
    if not FIREBASE_API_KEY:
        return jsonify({"error": "Firebase Web API Key is not configured on the server."}), 500
        
    try:
-       # Call Firebase REST API to verify password
-       url = url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={FIREBASE_API_KEY}"
+       url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={FIREBASE_API_KEY}"
        payload = {
            "email": email,
            "password": password,
            "returnSecureToken": True
        }
        response = requests.post(url, json=payload)
+       
        if response.status_code != 200:
            return jsonify({"error": "Invalid email or password"}), 401
-
 
        res_data = response.json()
        return jsonify({
@@ -223,31 +185,21 @@ def login_user():
            "uid": res_data.get("localId")
        }), 200
 
-
    except Exception as e:
        return jsonify({"error": str(e)}), 500
-
 
 @app.route('/user_profile/<uid>', methods=['GET'])
 def get_user_profile(uid):
     """
     Retrieves a user's profile information from Firestore.
-    This can be used for 'Tutor Profile' or basic student profiles.
-    Requires authentication and authorization (via Firebase ID Token verification on backend, or Firebase Security Rules for direct client access).
     """
-    # In a real app, you'd verify the ID token from the request header (e.g., 'Authorization: Bearer <ID_TOKEN>')
-    # to ensure the requester is authorized to view this profile (e.g., own profile or admin viewing).
-    # For simplicity, this example fetches data directly.
-    # Firebase Security Rules will be crucial for actual access control on the client side.
-
     user_ref = db.collection('users').document(uid)
     user_doc = user_ref.get()
 
     if user_doc.exists:
         profile_data = user_doc.to_dict()
-        # Remove created_at if not needed by client for display, or format it
         if 'created_at' in profile_data and hasattr(profile_data['created_at'], 'isoformat'):
-             profile_data['created_at'] = profile_data['created_at'].isoformat() # Convert Timestamp to string
+             profile_data['created_at'] = profile_data['created_at'].isoformat()
         return jsonify(profile_data), 200
     else:
         return jsonify({"error": "User profile not found"}), 404
@@ -256,119 +208,83 @@ def get_user_profile(uid):
 def update_user_profile(uid):
     """
     Updates a user's profile in Firestore.
-    This would be used by tutors to edit their profile.
-    Requires authentication and authorization (e.g., verify ID Token to ensure user is editing their own profile or is an admin).
     """
-    # In production, verify the ID token from the request header (e.g., 'Authorization: Bearer <ID_TOKEN>')
-    # and check if `request.auth.uid == uid` or if the user has the 'admin' role.
-
     data = request.get_json()
     if not data:
         return jsonify({"error": "No data provided for update"}), 400
 
     user_ref = db.collection('users').document(uid)
     try:
-        # Construct update_data for specific fields within the 'profile' map
         update_data = {}
         
         if 'tutoringLocation' in data:
             new_locations =  data['tutoringLocation']
-            #Validate locations against the predefned list
             if isinstance(new_locations, list) and all(loc in locations for loc in new_locations):
                 update_data['tutoringLocation'] = new_locations
             else:
-                 return jsonify({"error": "Invalid data provided for tutoringLocation. Must be a list of valid locations."}), 400
-        if 'name' in data:
-            update_data['profile.name'] = data['name'] # Update nested field
-        if 'pronouns' in data:
-            update_data['profile.pronouns'] = data['pronouns']
-        if 'description' in data:
-            update_data['profile.description'] = data['description']
-        # Add other profile fields here as needed (e.g., 'picture_url' for Tutor Profile F33)
-        if 'google_meets_link' in data: # Example for Online Tutoring (F6)
-            update_data['google_meets_link'] = data['google_meets_link']
-            # This should ideally only be updatable by an Admin or the Tutor themselves
-
-        # If the 'role' is intended to be updated via this endpoint (e.g., by an Admin),
-        # you would need to use auth_service.set_custom_user_claims() as well,
-        # and ensure proper authorization for role changes.
-        # Example: if 'role' in data and current_user_is_admin:
-        #    auth_service.set_custom_user_claims(uid, {'role': data['role']})
-        #    update_data['role'] = data['role'] # Also update Firestore for consistency
+                 return jsonify({"error": "Invalid data for tutoringLocation."}), 400
+        # Add other updatable fields here
+        # ...
 
         if not update_data:
             return jsonify({"message": "No valid profile fields to update"}), 200
 
-        user_ref.update(update_data) # Use .update() for partial updates
+        user_ref.update(update_data)
         return jsonify({"message": f"Profile for {uid} updated successfully"}), 200
     except firebase_exceptions.FirebaseError as e:
         return jsonify({"error": f"Firebase error during update: {e}"}), 500
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+# --- Clock-in/out System Routes ---
 
-# --- Running the Flask App ---
-if __name__ == '__main__':
-    # To run locally during development:
-    app.run(debug=True, port=5000)
-    # For production deployment on PythonAnywhere, you'll use a WSGI server like Gunicorn or uWSGI
-    # (e.g., from your PythonAnywhere web app settings, configure your WSGI file to point to 'app').
-
-#Additions for the clock-in/out system
-
-#@app.route('/roster/<location>', methods=['GET']): This new route will handle requests for the list of
-#staff members at a specific location. It will call the get_location_roster function from the clock_in_out.py 
-#file and return the list as a JSON response.
-@app.route('/roster/<location>', methods = ['GET'])
-def get_roster (location):
+@app.route('/roster/<location>', methods=['GET'])
+def get_roster(location):
     try: 
         roster = get_location_roster(location)
         return jsonify(roster), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-#@app.route('/clock_in', methods=['POST']): This route will handle clock-in requests. It will receive the user 
-#ID and location from the request body, call the clock_in function from clock_in_out.py, and then trigger the 
-#update_spreadsheet function in google_sheets.py to log the event in the appropriate Google Sheet.
-@app.route('/clock_in', methods = ['POST'])
+@app.route('/clock_in', methods=['POST'])
 def handle_clock_in():
     data = request.get_json()
     user_id = data.get('user_id')
     location = data.get('location')
     role = data.get('role')
 
-    if not user_id or not location:
-        return jsonify({"error", "user id and location are required"}), 400
+    if not user_id or not location or not role:
+        return jsonify({"error": "user_id, location, and role are required"}), 400
         
     try:
-        event = clock_in(user_id, location, role)
-        update_spreadsheet(location, event)
-        return jsonify({"message": "Clock-in successful", "data": event}), 200
+        event_data = clock_in(user_id, location, role)
+        # You'll need to get the user's first/last name to pass to the sheet
+        user_info = db.collection('users').document(user_id).get().to_dict()
+        sheet_data = {**event_data, **user_info}
+        update_spreadsheet(location, sheet_data)
+        return jsonify({"message": "Clock-in successful", "data": event_data}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     
-
-#@app.route('/clock_out', methods=['POST']): This route will handle clock-out requests. It will receive the 
-#user ID and location from the request body, call the clock_out function, and update the corresponding Google Sheet.
 @app.route('/clock_out', methods=['POST'])
 def handle_clock_out():
-    data = request.get.json()
-    user_id = data.het('user_id')
+    data = request.get_json()
+    user_id = data.get('user_id')
     location = data.get('location')
     role = data.get('role')
     
-    if not user_id or not location:
-        return jsonify({"error","user id and location are required "}), 400
+    if not user_id or not location or not role:
+        return jsonify({"error": "user_id, location, and role are required"}), 400
     try:
-        event = clock_out(user_id, location, role)
-        update_spreadsheet(location, event)
-        return jsonify({"message": "Clock-out successful", "data": event}), 200
+        event_data = clock_out(user_id, location, role)
+        # You'll need to get the user's first/last name to pass to the sheet
+        user_info = db.collection('users').document(user_id).get().to_dict()
+        sheet_data = {**event_data, **user_info}
+        update_spreadsheet(location, sheet_data)
+        return jsonify({"message": "Clock-out successful", "data": event_data}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     
-#@app.route('/work_hours', methods=['GET'])
-#retrieves work hours for a specific user and date from Firestore.
-#This route is used to fetch time-tracking data for reporting purposes.
 @app.route('/work_hours', methods=['GET'])
 def get_work_hours():
     user_id = request.args.get('user_id')
@@ -376,11 +292,132 @@ def get_work_hours():
 
     if not user_id or not date:
         return jsonify({"error": "user_id and date are required"}), 400
-        try:
-            # Query work hours for the user on the specified date
-            work_ref = db.collections('work_hours').where('user_id', '==', user_id).where('date', '==', date).get()
-            work_hours = [doc.to_dict() for doc in work_ref]
+    try:
+        work_ref = db.collection('work_hours').where('user_id', '==', user_id).where('date', '==', date).get()
+        work_hours = [doc.to_dict() for doc in work_ref]
+        return jsonify(work_hours), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
-            return jsonify(work_hours), 200
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
+#15 Day Summary Route
+@app.route('/15_day_summary/<location>', methods = ['POST'])
+def handle_15_day_summary(location):
+    """ Generates a 15-day summary report for a specific location.
+    """
+    try:
+        result = generate_15_day_location_summary(location)
+        return jsonify(result), 200
+    except Exception as e:
+        return jsonify({"error" : f"failed to generate summary for {location}: {str(e)}"}), 500
+     
+#Attendance Routes
+
+#Retrieves a list of all students registered at a specific tutoring location
+@app.route('/attendance/students/<location>', methods=['GET'])
+def handle_get_student_list(location):
+    """
+    Retrieves a list of all students registered at a specific tutoring location.
+    """
+    try:
+        students = get_student_list(location)
+        return jsonify(students), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+#Handles the attendance for a student
+@app.route('/attendance/take', methods=['POST'])
+def handle_take_attendance():
+    """
+    Endpoint to record attendance for a student.
+    Calls the take_attendance function.
+    """
+    data = request.get_json()
+    location = data.get('location')
+    student_id = data.get('student_id')
+    status = data.get('status')
+
+    if not all([location, student_id, status]):
+        return jsonify({"error": "location, student_id, and status are required"}), 400
+    
+    if status not in ['present', 'absent']:
+        return jsonify({"error": "status must be 'present' or 'absent'"}), 400
+
+    try:
+        # This will call the function from attendance.py
+        result = take_attendance(location, student_id, status)
+        return jsonify(result), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+#Handles the editing of a students attendance
+@app.route('/attendance/edit', methods=['PUT'])
+def handle_edit_attendance():
+    """
+    Endpoint to edit a student's attendance record."""
+    data = request.get_json()
+    location = data.get('location')
+    student_id = data.get('student_id')
+    status = data.get('status')
+
+    if not all ([location, student_id, status]):
+        return jsonify({"error": "location, student_id, and status are required"}), 400
+    if status not in ['present', 'absent']:
+        return jsonify({"error" : "status must be 'present' or absent'"}), 400
+    try:
+        result = edit_attendance(location, student_id, status)
+        return jsonify(result), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+#Handles the count of present students at a location 
+@app.route('/attendance/count/<location>', methods=['GET'])
+def handle_attendance_count(location):   
+    """
+    Endpoint to get the count of present students at a location for the current day.
+    Calls the attendance_count function.
+    """
+    try:
+        #This will call the function from attendance.py
+        count = attendance_count(location)
+        return jsonify(count), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500  
+# --- Running the Flask App ---
+if __name__ == '__main__':
+    app.run(debug=True, port=5000)
+
+@app.route('/attendance/micro', methods=['POST'])
+def handle_micro_attendance():
+    """
+    Endpoint to trigger daily attendance logging into Google Sheets for a given location.
+    Expects a JSON body with 'google_sheet_name' and 'location'.
+    """
+    data = request.get_json()
+    google_sheet_name = data.get('google_sheet_name')
+    location = data.get('location')
+
+    if not google_sheet_name or not location:
+        return jsonify({"error": "google_sheet_name and location are required"}), 400
+
+    try:
+        micro_attendance(google_sheet_name, location)
+        return jsonify({"message": f"Micro attendance logged successfully for {location}."}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/attendance/macro', methods=['POST'])
+def handle_macro_attendance():
+    """
+    Endpoint to trigger monthly attendance summary logging.
+    Only works if today is the 1st of the month.
+    """
+    try:
+        today = datetime.now()
+        if today.day != 1:
+            return jsonify({"message": "Macro attendance reports are only generated on the 1st day of each month."}), 400
+        
+        macro_attendance()
+        return jsonify({"message": "Macro attendance report generated successfully."}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
