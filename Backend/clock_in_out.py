@@ -1,5 +1,5 @@
 from datetime import datetime
-from app import db
+from firebase_config import db  
 from firebase_admin import firestore
 
 TIMESTAMP_FILE = "sheet_timestamps.json"
@@ -55,3 +55,6 @@ def get_location_roster(location):
             user_map[doc.id] = doc.to_dict()
 
     return list(user_map.values())
+
+
+#15 Day Summary
