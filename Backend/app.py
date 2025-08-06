@@ -8,7 +8,7 @@ from email.message import EmailMessage
 from firebase_admin import auth, exceptions as firebase_exceptions
 from locations import locations
 from clock_in_out import get_location_roster, clock_in, clock_out
-from logging_google_sheets import update_spreadsheet, generate_15_day_location_summary
+from logging_google_sheets import update_spreadsheet, generate_15_day_location_summary, cleanup_old_sheets
 from firebase_config import db  
 from datetime import datetime
 from firebase_admin import firestore
@@ -20,9 +20,6 @@ load_dotenv()
 FIREBASE_API_KEY = os.getenv('FIREBASE_API_KEY')
 
 app = Flask(__name__)
-
-# The Firebase initialization code has been moved to firebase_config.py
-# to prevent circular imports.
 
 # --- Flask Routes for User Account System (F1) ---
 
@@ -382,6 +379,49 @@ def handle_attendance_count(location):
         return jsonify(count), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500  
+    
+# --- Admin Routes ---
+from payroll_validation import handle_payroll_approval 
+
+@app.route('/payroll/approval', methods=['POST'])
+def admin_payroll_approve(): 
+    """
+    Endpoint to approve payroll for a specific location and pay period.
+    """
+    data = request.get_json()
+    location = data.get('location')
+    if not location:
+        return jsonify({"error": "location is required"}), 400
+    result = handle_payroll_approval(location)
+    return jsonify(result), 200 if result.get("status") == "approved" else 500
+
+@app.route('/payroll/approval/summary', methods=['GET'])
+def admin_payroll_approval_summary():
+    """
+    Endpoint to get a summary of payroll approvals for the current pay period.
+    """
+    try:
+        summaries = []
+        for loc in locations:
+            summary = db.collection('payroll_approvals').document(f"{loc}_{datetime.now().strftime('%Y-%m-%d')}").get()
+            if summary.exists:
+                summaries.append({loc: summary.to_dict()})
+        return jsonify(summaries), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+from logging_google_sheets import cleanup_old_sheets
+@app.route('/payroll/cleanup', methods=['POST'])
+def admin_cleanup_sheets():
+    """
+    Endpoint to clean up old Google Sheets for payroll.
+    """
+    try:
+        cleanup_old_sheets()
+        return jsonify({"message": "Old sheets cleaned up successfully."}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500 
+
 # --- Running the Flask App ---
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
@@ -420,4 +460,4 @@ def handle_macro_attendance():
         return jsonify({"message": "Macro attendance report generated successfully."}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
+    
