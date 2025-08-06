@@ -46,18 +46,28 @@ def update_spreadsheet(location, data):
     try:
         workbook = client.open("House of Wisdom Log")
         #Today's date
-        today = datetime.now().date() 
-        start_date = today - timedelta(days = today.day % 15)
-        end_date = start_date + timedelta(days = 14)
-        sheet_name = f"{location} - {start_date.strftime('%Y-%m-%d')} to {end_date.strfttime('%Y-%m-%d')}"
+        today = datetime.now().date()
+        
+        # --- CHANGE START ---
+        # This logic was updated to mirror the payroll validation logic, ensuring
+        # that sheets are created for the 1st-15th and 16th-end of month periods.
+        if today.day > 15:
+            start_date = today.replace(day=16)
+            end_date = (today.replace(day=1) + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+        else:
+            start_date = today.replace(day=1)
+            end_date = today.replace(day=15)
+        # --- CHANGE END ---
+
+        sheet_name = f"{location} - {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}"
         
         try:
             worksheet = workbook.worksheet(sheet_name)
         
-        except gspread.exceptions.WorksheetNotFound():
+        except gspread.exceptions.WorksheetNotFound:
             worksheet = workbook.add_worksheet(title = sheet_name, rows = "250", cols = "10")
             header = ["Location", "Role", "First Name", "Last Name", "Timestamp", "Status"]
-            worksheet.append_row(header, value_input_option='USER ENTERED')
+            worksheet.append_row(header, value_input_option='USER_ENTERED')
             
         row = [
             location,
@@ -70,6 +80,11 @@ def update_spreadsheet(location, data):
 
         worksheet.append_row(row)
         print(f"Appended row to {sheet_name}: {row}")
+
+        # --- CHANGE START ---
+        # Added cleanup call to ensure old log sheets are deleted after an update.
+        cleanup_old_sheets("House of Wisdom Log", sheet_type="log")
+        # --- CHANGE END ---
     
     except Exception as e:
         print(f"Error updating spreadsheet for location '{location}': {e}")
@@ -108,16 +123,22 @@ def generate_15_day_location_summary(location):
     """
     print(f"Generating 15-day summary report for {location}...")
     
-    # 1. Define the 15-day date range (MODIFIED LOGIC)
-    # This logic now matches the update_spreadsheet function.
+    # --- CHANGE START ---
+    # This logic was also updated to mirror the payroll validation logic, ensuring
+    # summary reports cover the exact same periods as the log sheets and payroll CSVs.
     today = datetime.now().date()
-    start_date = today - timedelta(days = (today.day - 1) % 15)
-    end_date = start_date + timedelta(days=14)
+    if today.day > 15:
+        start_date = today.replace(day=16)
+        # End of the current month
+        end_date = (today.replace(day=1) + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+    else:
+        start_date = today.replace(day=1)
+        end_date = today.replace(day=15)
+    # --- CHANGE END ---
     
     try:
         from firebase_config import db 
 
-        # ... (The rest of the function remains the same) ...
         users_query = db.collection('users').where('tutoringLocation', 'array-contains', location).stream()
         location_users = {user.id: user.to_dict() for user in users_query}
         report_data = []
@@ -154,13 +175,13 @@ def generate_15_day_location_summary(location):
             print(f"No work hour data found for {location} in the period starting {start_date}.")
             return {"message": f"No work hour data found for {location} in the period."}
 
-        # This part correctly creates a sheet name based on the date bucket.
         client = get_gspread_client()
         if not client:
             raise Exception("Could not connect to Google Sheets.")
             
         workbook = client.open("HOW-15-Day-Summary")
-        sheet_name = f"{location} Summary - {start_date.strftime('%Y-%m-%d')}"
+        # Updated sheet name to be consistent with payroll CSVs
+        sheet_name = f"{location} Summary - {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}"
         
         try:
             worksheet = workbook.worksheet(sheet_name)
@@ -173,8 +194,43 @@ def generate_15_day_location_summary(location):
         worksheet.append_rows(report_data)
 
         print(f"Successfully generated summary for {location} in sheet: {sheet_name}")
+        
+        # --- CHANGE START ---
+        # Added cleanup call for summary sheets after a new one is generated.
+        cleanup_old_sheets("HOW-15-Day-Summary", sheet_type="summary")
+        # --- CHANGE END ---
+
         return {"message": f"Report successfully generated for {location}."}
 
     except Exception as e:
         print(f"An error occurred during report generation for {location}: {e}")
         raise
+
+def cleanup_old_sheets (workbook_name, sheet_type = "log"):
+    client = get_gspread_client()
+    if not client:
+        print ("Failed to authenticate with Google Sheets")
+        return
+    
+    workbook = client.open(workbook_name)
+    today = datetime.now().date()
+    # Keep sheets for approximately 6 months
+    cutoff_date = today - timedelta(days = 6 * 30)
+
+    for sheet in workbook.worksheets():
+        try: 
+            if sheet_type == "log" or sheet_type == "summary":
+                 # Extracts the start date from titles like "Location - YYYY-MM-DD to YYYY-MM-DD"
+                 # or "Location Summary - YYYY-MM-DD to YYYY-MM-DD"
+                date_part = sheet.title.split(" - ")[1].split(" to ")[0]
+            else: 
+                print(f"Unknown sheet_type: {sheet_type}")
+                continue
+
+            sheet_start_date = datetime.strptime(date_part, "%Y-%m-%d").date()
+            
+            if sheet_start_date < cutoff_date:
+                print(f"Deleting old sheet: {sheet.title}")
+                workbook.del_worksheet(sheet)
+        except Exception as e:
+            print(f"Skipping sheet '{sheet.title}', could not parse date: {e}")
