@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { FaHome, FaCalendarAlt, FaEllipsisH, FaUsers } from 'react-icons/fa';
+import Calendar from '../components/Calendar';
 
 const StaffDashboard = () => {
   const [activeTab, setActiveTab] = useState('Dashboard');
@@ -38,6 +39,12 @@ const StaffDashboard = () => {
           </div>
         );
       case 'Calendar':
+        return (
+          <div style={styles.dashboardContent}>
+          <h3>Team Calendar</h3>
+          <Calendar />
+        </div>
+      );
       case 'Shift Coverage':
       case 'Onboarding':
       default:

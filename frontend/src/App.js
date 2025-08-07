@@ -3,9 +3,10 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import LoginSelection from './components/Login/LoginSelection';
 import StudentLogin from './components/Login/StudentLogin';
 import StaffLogin from './components/Login/StaffLogin';
-import SignUp from './components/Login/SignUp';
-import Dashboard from './Tutor & PM Dashboard/StaffDashboard';
-import AdminDashboard from './SeniorPM & Admin Dashboard/AdminDashboard';
+import TutorDashboard from './Tutor Profile/TutorDashboard';
+import AdminDashboard from './Admin Profile/AdminDashboard';
+import SeniorPMDashboard from './Senior PM Profile/SeniorDashboard';
+import JuniorPMDashboard from './Junior PM Profile/JuniorDashboard';
 
 function App() {
   return (
@@ -14,9 +15,10 @@ function App() {
         <Route path="/login" element={<LoginSelection />} />
         <Route path="/login/student" element={<StudentLogin />} />
         <Route path="/login/staff" element={<StaffLogin />} />
-        <Route path="/login/signup" element={<SignUp />} />
-        <Route path="/staffdashboard" element={<Dashboard />} />
+        <Route path="/tutordashboard" element={<TutorDashboard />} />
         <Route path="/admindashboard" element={<AdminDashboard />} />
+        <Route path="/seniordashboard" element={<SeniorPMDashboard />} />
+        <Route path="/juniordashboard" element={<JuniorPMDashboard />} />
       </Routes>
     </Router>
   );
