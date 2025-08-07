@@ -393,7 +393,20 @@ def admin_payroll_approve():
     if not location:
         return jsonify({"error": "location is required"}), 400
     result = handle_payroll_approval(location)
-    return jsonify(result), 200 if result.get("status") == "approved" else 500
+    return jsonify(result), 200 if result.get("status") == "success" else 500
+
+from payroll_validation import handle_payroll_approval, send_final_approval_email
+
+@app.route('/payroll/send_final_email', methods=['POST'])
+def trigger_final_payroll_email():
+    """
+    Manually triggers the final payroll email to all admins after all locations are approved.
+    """
+    try:
+        send_final_approval_email()
+        return jsonify({"message": "Final payroll email sent."}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/payroll/approval/summary', methods=['GET'])
 def admin_payroll_approval_summary():
@@ -460,4 +473,46 @@ def handle_macro_attendance():
         return jsonify({"message": "Macro attendance report generated successfully."}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-    
+
+# Additional Routes
+@app.route('/users', methods=['GET'])
+def list_users():
+    """
+    Retrieves all users from the Firestore 'users' collection.
+    Returns a list of user profiles including their UID.
+    Intended for admin use only.
+    """
+    try:
+        users_ref = db.collection('users').stream()
+        users = [{**doc.to_dict(), "uid": doc.id} for doc in users_ref]
+        return jsonify(users), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/user/<uid>', methods=['DELETE'])
+def delete_user(uid):
+    """
+    Deletes a user from Firebase Authentication and Firestore by UID.
+    Intended for admin control of user lifecycle.
+    """
+    try:
+        auth.delete_user(uid)
+        db.collection('users').document(uid).delete()
+        return jsonify({"message": f"User {uid} deleted."}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/analytics/clockins_today', methods=['GET'])
+def clockins_today():
+    """
+    Returns the number of users who clocked in today across all locations.
+    Useful for internal analytics or dashboard metrics.
+    """
+    try:
+        today = datetime.now().date().isoformat()
+        shifts = db.collection('shifts').where('event', '==', 'clock-in').stream()
+        today_count = sum(1 for s in shifts if s.to_dict().get('timestamp', '').startswith(today))
+        return jsonify({"clock_ins_today": today_count}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
