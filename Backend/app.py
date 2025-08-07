@@ -1,5 +1,5 @@
 import os
-from dotenv import load_dotenv
+from dotlenv import load_dotenv 
 from flask import Flask, request, jsonify
 import requests
 import smtplib

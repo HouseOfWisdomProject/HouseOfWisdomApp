@@ -163,8 +163,8 @@ def send_location_approval_email(recipient_emails, location, csv_data, filename)
     
     # Companies and sends and email with the location-specific payroll CSV attached.
     message = MIMEMultipart()
-    message["FROM"] = SENDER_EMAIL
-    message["TO"] = ', '.join(recipient_emails)
+    message["From"] = SENDER_EMAIL
+    message["To"] = ', '.join(recipient_emails)
     
     body = f"""
     Hello Admin Team,
@@ -245,8 +245,8 @@ def check_all_locations_approved():
     # return len(approved_count) == len(locations)
     try:
         today = datetime.now().date()
-        period_start = today - timedelta(days = (today.day - 1) % 15)
-        pay_period_id = period_start.strftime("%Y-%m-%d")
+        pay_period_id = f"{today.year}-{today.month}-{1 if today.day <= 15 else 16}"
+
 
         approvals_ref = (
             db.collection('payroll_approvals') 
@@ -300,7 +300,7 @@ def send_final_approval_email():
     # 3. Fetch and attach the CSV data for each location.
     for location in locations:
         try:
-            csv_data = generate_payroll_data_for_location(location)
+            csv_data, _, _ = generate_payroll_data_for_location(location)
             if not csv_data or len(csv_data) <= 1:
                 print(f"No data for {location}; skipping attachment.")
                 continue
@@ -352,3 +352,35 @@ def send_final_approval_email():
 #         return jsonify(result), 200
 #     else:
 #         return jsonify(result), 500
+
+def list_payroll_approvals():
+    """
+    Lists all locations that have submitted payroll approvals for the current pay period.
+    Useful for admin monitoring or dashboard purposes.
+    """
+    try:
+        today = datetime.now()
+        pay_period_id = f"{today.year}-{today.month}-{1 if today.day <= 15 else 16}"
+        docs = db.collection('payroll_approvals') \
+                 .where('pay_period_id', '==', pay_period_id) \
+                 .stream()
+        return {doc.id: doc.to_dict() for doc in docs}
+    except Exception as e:
+        print(f"Error fetching approvals: {e}")
+        return {}
+
+def list_payroll_approvals():
+    """
+    Lists all locations that have submitted payroll approvals for the current pay period.
+    Useful for admin monitoring or dashboard purposes.
+    """
+    try:
+        today = datetime.now()
+        pay_period_id = f"{today.year}-{today.month}-{1 if today.day <= 15 else 16}"
+        docs = db.collection('payroll_approvals') \
+                 .where('pay_period_id', '==', pay_period_id) \
+                 .stream()
+        return {doc.id: doc.to_dict() for doc in docs}
+    except Exception as e:
+        print(f"Error fetching approvals: {e}")
+        return {}
