@@ -62,7 +62,7 @@ def update_spreadsheet(location, data):
             location,
             data.get("role", ""),
             data.get("firstName", ""),
-            data.get("lastNmae", "")
+            data.get("lastName", ""),
             data.get("timestamp"),
             data.get("status")
         ]

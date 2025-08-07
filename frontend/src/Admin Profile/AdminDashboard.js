@@ -1,24 +1,33 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { FaHome, FaCalendarAlt, FaEllipsisH, FaUsers, FaClock } from 'react-icons/fa';
+import { FaHome, FaCalendarAlt, FaEllipsisH, FaUsers, FaClock, FaUserGraduate, FaPersonBooth, FaUser } from 'react-icons/fa';
+import Calendar from '../components/Calendar';
 
 {/*this is just test profiles to show Punch in/out system and the corresponding tutors*/}
 const dummyStaff = [
-{
+  {
     id: 1,
     name: 'John Smith',
     position: 'Tutor',
     location: 'Edmonds Location',
     hours: '12:30',
     profilePic: '',
-},
-{
+  },
+  {
     id: 2,
     name: 'Mary Johnson',
     position: 'Staff',
     location: 'Lake City Location',
     hours: '08:15',
     profilePic: '',
-}
+  }
+];
+
+{/*this is just test profiles to show Student Check in and Check Out*/}
+const dummyStudents = [
+  { id: 1, name: 'Abby White', grade: '4th Grade' },
+  { id: 2, name: 'Leo Vasquez', grade: '5th Grade' },
+  { id: 3, name: 'Sofia Jones', grade: '2nd Grade' },
+  { id: 4, name: 'Evie Smith', grade: '9th Grade' },
 ];
 
 const AdminDashboard = () => {
@@ -48,8 +57,8 @@ const AdminDashboard = () => {
         return (
           <div style={styles.dashboardContent}>
             <div style={styles.headerRow}>
-                <h2 style={styles.shiftHeader}>My Admin Dashboard</h2>
-                <img src="/HOW-Logo.png" alt="HOW Logo" style={styles.logo} />
+              <h2 style={styles.shiftHeader}>My Admin Dashboard</h2>
+              <img src="/HOW-Logo.png" alt="HOW Logo" style={styles.logo} />
             </div>
 
             <div style={styles.quickAccessRow}>
@@ -70,10 +79,10 @@ const AdminDashboard = () => {
             </div>
           </div>
         );
-      case 'Clock In/Out':
+      case 'Staff Clock In/Out':
         return (
           <div style={styles.dashboardContent}>
-            <h3>Staff Punch In/Out</h3>
+            <h3>Staff Clock In/Out</h3>
             <div style={styles.staffTable}>
               {dummyStaff.map(staff => (
                 <div key={staff.id} style={styles.staffRow}>
@@ -101,16 +110,54 @@ const AdminDashboard = () => {
             )}
           </div>
         );
+      case 'Student Attendance':
+        return (
+          <div style={styles.dashboardContent}>
+            <h3>Student Attendance</h3>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
+              gap: '15px'
+            }}>
+              {dummyStudents.map(student => (
+                <div key={student.id} style={{
+                  border: '1px solid #ccc',
+                  borderRadius: '8px',
+                  padding: '15px',
+                  backgroundColor: '#fafafa',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '10px',
+                  justifyContent: 'space-between'
+                }}>
+                  <div>
+                    <strong>{student.name}</strong>
+                    <p>{student.grade}</p>
+                  </div>
+                  <div>
+                    <button style={styles.punchButton}>Check In</button>
+                    <button style={styles.punchButton}>Check Out</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
       case 'Calendar':
+        return (
+          <div style={styles.dashboardContent}>
+          <h3>Team Calendar</h3>
+          <Calendar />
+        </div>
+      );
       case 'Shift Coverage':
       case 'Onboarding':
-    {/*This is just a place holder until we can fill in the content for these pages*/}
       default:
         return <div style={styles.dashboardContent}>Content for {activeTab}</div>;
     }
   };
 
-  const navItems = ['Dashboard', 'Calendar', 'Onboarding', 'Clock In/Out', 'Shift Coverage'];
+  const navItems = ['Dashboard', 'Staff Clock In/Out', 'Student Attendance', 'Calendar', 'Onboarding', 'Shift Coverage'];
 
   return (
     <div style={styles.container}>
@@ -137,10 +184,11 @@ const AdminDashboard = () => {
             >
               <span style={styles.icon}>
                 {item === 'Dashboard' ? <FaHome /> :
-                item === 'Calendar' ? <FaCalendarAlt /> :
-                item === 'Shift Coverage' ? <FaEllipsisH /> :
-                item === 'Onboarding' ? <FaUsers /> :
-                <FaClock />}
+                  item === 'Calendar' ? <FaCalendarAlt /> :
+                    item === 'Shift Coverage' ? <FaEllipsisH /> :
+                      item === 'Onboarding' ? <FaUsers /> :
+                        item == 'Student Attendance' ? <FaUser /> :
+                        <FaClock />}
               </span>
               {item}
             </div>
@@ -153,44 +201,44 @@ const AdminDashboard = () => {
 };
 
 const styles = {
-container: {
+  container: {
     display: 'flex',
     height: '100vh',
     fontFamily: 'sans-serif'
-},
-headerRow: {
+  },
+  headerRow: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-},
-shiftHeader: {
+  },
+  shiftHeader: {
     margin: 0,
     marginTop: '50px'
-},
-logo: {
+  },
+  logo: {
     width: '100px',
     height: 'auto',
-},
-sidebar: {
+  },
+  sidebar: {
     width: '250px',
     backgroundColor: '#ffefd5',
     padding: '20px',
     display: 'flex',
     flexDirection: 'column',
     gap: '20px'
-},
-profileSection: {
+  },
+  profileSection: {
     display: 'flex',
     alignItems: 'center',
     gap: '10px'
-},
-profilePic: {
+  },
+  profilePic: {
     width: '50px',
     height: '50px',
     borderRadius: '50%',
     backgroundColor: '#ccc'
-},
-viewProfile: {
+  },
+  viewProfile: {
     backgroundColor: '#000',
     color: '#fff',
     border: 'none',
@@ -198,13 +246,13 @@ viewProfile: {
     fontSize: '12px',
     cursor: 'pointer',
     marginTop: '-8px'
-},
-navButtons: {
+  },
+  navButtons: {
     display: 'flex',
     flexDirection: 'column',
     gap: '10px'
-},
-navButton: {
+  },
+  navButton: {
     backgroundColor: '#fff',
     color: '#333',
     padding: '10px',
@@ -213,33 +261,33 @@ navButton: {
     display: 'flex',
     alignItems: 'center',
     gap: '10px'
-},
-activeNavButton: {
+  },
+  activeNavButton: {
     backgroundColor: '#fff',
     borderLeft: '6px solid #f97316',
     marginLeft: '-6px'
-},
-icon: {
+  },
+  icon: {
     fontSize: '16px'
-},
-content: {
+  },
+  content: {
     flexGrow: 1,
     backgroundColor: '#fff',
     padding: '30px'
-},
-dashboardContent: {
+  },
+  dashboardContent: {
     display: 'flex',
     flexDirection: 'column',
     gap: '30px'
-},
-quickAccessRow: {
+  },
+  quickAccessRow: {
     display: 'flex',
     gap: '40px'
-},
-hoursContainer: {
+  },
+  hoursContainer: {
     flex: '1'
-},
-quickButton: {
+  },
+  quickButton: {
     padding: '20px',
     backgroundColor: '#f97316',
     color: '#fff',
@@ -247,13 +295,13 @@ quickButton: {
     border: 'none',
     borderRadius: '8px',
     cursor: 'pointer'
-},
-staffTable: {
+  },
+  staffTable: {
     display: 'grid',
     gridTemplateColumns: '1fr 1fr',
     gap: '10px'
-},
-staffRow: {
+  },
+  staffRow: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -261,12 +309,13 @@ staffRow: {
     border: '1px solid #eee',
     borderRadius: '5px',
     backgroundColor: '#fafafa'
-},
-staffName: {
+  },
+  staffName: {
     cursor: 'pointer',
     color: '#000000'
-},
-punchButton: {
+  },
+  
+  punchButton: {
     padding: '8px 16px',
     backgroundColor: '#f97316',
     color: '#fff',
@@ -274,49 +323,40 @@ punchButton: {
     borderRadius: '5px',
     marginLeft: '5px',
     cursor: 'pointer'
-},
-profileModal: {
+  },
+  profileModal: {
     marginTop: '20px',
     padding: '20px',
     backgroundColor: '#ffefd5',
     borderRadius: '10px',
     width: '300px'
-},
-profileHeader: {
+  },
+  profileHeader: {
     fontWeight: 'bold',
     fontSize: '18px',
     marginBottom: '10px'
-},
-profileBody: {
+  },
+  profileBody: {
     display: 'flex',
     gap: '15px',
     alignItems: 'flex-start'
-},
-quickAccessContainer: {
+  },
+  quickAccessContainer: {
     flex: '2'
-},
-grayBox: {
+  },
+  grayBox: {
     backgroundColor: '#eee',
     height: '100px',
     borderRadius: '10px',
     padding: '20px',
     marginTop: '10px',
-},
-quickAccessGrid: {
+  },
+  quickAccessGrid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(2, 1fr)',
     gap: '10px',
     marginTop: '10px'
-},
-quickButton: {
-    padding: '20px',
-    backgroundColor: '#f97316',
-    color: '#fff',
-    fontSize: '15px',
-    border: 'none',
-    borderRadius: '8px',
-    cursor: 'pointer'
-}
+  }
 };
 
 export default AdminDashboard;
