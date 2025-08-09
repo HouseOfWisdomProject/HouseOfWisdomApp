@@ -35,7 +35,7 @@ SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 465
 
 # --- Main Functions ---
-def handle_payroll_approval(location):
+def handle_payroll_approval(location, user_role, user_locations):
     """
     Main function triggered when a Senior PM clicks the 'Approve' button for their location.
 
@@ -46,6 +46,10 @@ def handle_payroll_approval(location):
     4. Record the approval status for the location.
     5. Check if all locations have been approved and, if so, trigger the final email.
     """
+    # === AUTHORIZATION CHECK ===
+    if user_role.lower() == 'senior_pm' and location not in user_locations:
+        return {"status": "error", "message": "You do not have permission to approve this location."}
+
     print(f"Starting payroll approval process for {location}...")
     try:
         # 1. Generate the 15-day payroll summary CSV data in memory.

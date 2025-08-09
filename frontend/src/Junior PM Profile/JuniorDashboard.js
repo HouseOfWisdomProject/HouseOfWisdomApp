@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { FaHome, FaCalendarAlt, FaEllipsisH, FaUsers, FaClock, FaUserGraduate, FaPersonBooth, FaUser } from 'react-icons/fa';
 import Calendar from '../components/Calendar';
+import StudentAttendance from '../components/StudentAttendance';
 
 {/*this is just test profiles to show Punch in/out system and the corresponding tutors*/}
 const dummyStaff = [
@@ -20,14 +21,6 @@ const dummyStaff = [
     hours: '08:15',
     profilePic: '',
   }
-];
-
-{/*this is just test profiles to show Student Check in and Check Out*/}
-const dummyStudents = [
-  { id: 1, name: 'Abby White', grade: '4th Grade' },
-  { id: 2, name: 'Leo Vasquez', grade: '5th Grade' },
-  { id: 3, name: 'Sofia Jones', grade: '2nd Grade' },
-  { id: 4, name: 'Evie Smith', grade: '9th Grade' },
 ];
 
 const JuniorPMDashboard = () => {
@@ -113,36 +106,10 @@ const JuniorPMDashboard = () => {
       case 'Student Attendance':
         return (
           <div style={styles.dashboardContent}>
-            <h3>Student Attendance</h3>
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
-              gap: '15px'
-            }}>
-              {dummyStudents.map(student => (
-                <div key={student.id} style={{
-                  border: '1px solid #ccc',
-                  borderRadius: '8px',
-                  padding: '15px',
-                  backgroundColor: '#fafafa',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '10px',
-                  justifyContent: 'space-between'
-                }}>
-                  <div>
-                    <strong>{student.name}</strong>
-                    <p>{student.grade}</p>
-                  </div>
-                  <div>
-                    <button style={styles.punchButton}>Check In</button>
-                    <button style={styles.punchButton}>Check Out</button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        );
+          <h3>Student Attendance</h3>
+          <StudentAttendance />
+        </div>
+      );
       case 'Calendar':
         return (
           <div style={styles.dashboardContent}>

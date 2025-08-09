@@ -1,5 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import TestDirectory from './TestingDirectory';
 import LoginSelection from './components/Login/LoginSelection';
 import StudentLogin from './components/Login/StudentLogin';
 import StaffLogin from './components/Login/StaffLogin';
@@ -12,6 +13,7 @@ function App() {
   return (
     <Router>
       <Routes>
+        <Route path="/" element={<TestDirectory />} />
         <Route path="/login" element={<LoginSelection />} />
         <Route path="/login/student" element={<StudentLogin />} />
         <Route path="/login/staff" element={<StaffLogin />} />
