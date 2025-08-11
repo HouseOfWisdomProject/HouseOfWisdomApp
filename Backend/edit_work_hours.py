@@ -16,6 +16,7 @@ from firebase_config import db
 from clock_in_out import get_location_roster
 from logging_google_sheets import get_gspread_client
 import gspread
+from flask import Flask, request, jsonify
 
 
 def _regenerate_log_sheet(location):
@@ -277,3 +278,57 @@ def add_shift(location, first_name, last_name, start_time, end_time):
     except Exception as e:
         print(f"Error adding shift: {e}")
         return {"error": str(e)}
+
+# Initialize Flask app
+app = Flask(__name__)
+
+@app.route('/get_shifts', methods=['GET'])
+def get_shifts():
+    location = request.args.get('location')
+    first_name = request.args.get('first_name')
+    last_name = request.args.get('last_name')
+    date = request.args.get('date')
+
+    user_info = find_user_by_name(location, first_name, last_name)
+    if not user_info:
+        return jsonify({"error": "User not found."}), 404
+
+    shifts = find_shifts_for_user(user_info['id'], date)
+    return jsonify(shifts)
+
+@app.route('/edit_shift', methods=['POST'])
+def edit_shift():
+    data = request.json
+    location = data['location']
+    clock_in_id = data['clock_in_id']
+    clock_out_id = data['clock_out_id']
+    new_start_time = data['new_start_time']
+    new_end_time = data['new_end_time']
+
+    result = edit_work_hours(location, clock_in_id, clock_out_id, new_start_time, new_end_time)
+    return jsonify(result)
+
+@app.route('/remove_shift', methods=['DELETE'])
+def remove_shift():
+    data = request.json
+    location = data['location']
+    clock_in_id = data['clock_in_id']
+    clock_out_id = data['clock_out_id']
+
+    result = remove_shift(location, clock_in_id, clock_out_id)
+    return jsonify(result)
+
+@app.route('/add_shift', methods=['POST'])
+def add_shift():
+    data = request.json
+    location = data['location']
+    first_name = data['first_name']
+    last_name = data['last_name']
+    start_time = data['start_time']
+    end_time = data['end_time']
+
+    result = add_shift(location, first_name, last_name, start_time, end_time)
+    return jsonify(result)
+
+if __name__ == '__main__':
+    app.run(debug=True)
