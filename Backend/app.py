@@ -15,6 +15,15 @@ from datetime import datetime
 from firebase_admin import firestore
 from attendance import get_student_list, take_attendance, edit_attendance, attendance_count
 from attendance_google_sheet import micro_attendance, macro_attendance
+from edit_work_hours import app as edit_work_hours_app
+import logging
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+logger.info("Application started")
+logger.warning("This is a warning")
+logger.error("An error occurred")
 
 # Load environment variables from .env file
 load_dotenv()
@@ -22,6 +31,9 @@ FIREBASE_API_KEY = os.getenv('FIREBASE_API_KEY')
 
 app = Flask(__name__, static_folder='../frontend/build',static_url_path='/')
 CORS(app)
+
+# Register the routes from edit_work_hours.py
+app.register_blueprint(edit_work_hours_app, url_prefix='/work_hours')
 
 # --- Flask Routes for User Account System (F1) ---
 
@@ -297,6 +309,10 @@ def get_work_hours():
         return jsonify(work_hours), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+@app.route('/work_hours/health', methods=['GET'])
+def work_hours_health():
+    return jsonify({"status": "Work Hours API is running"}), 200
 
 #15 Day Summary Route
 @app.route('/15_day_summary/<location>', methods = ['POST'])
