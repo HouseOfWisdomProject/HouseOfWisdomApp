@@ -157,7 +157,7 @@ const AdminDashboard = () => {
 const styles = {
   container: {
     display: 'flex',
-    height: '100vh',
+    minHeight: '100vh',
     fontFamily: 'sans-serif',
   },
   headerRow: {
@@ -180,6 +180,8 @@ const styles = {
     display: 'flex',
     flexDirection: 'column',
     gap: '20px',
+    flexShrink: 0,
+
   },
   profileSection: {
     display: 'flex',
@@ -206,6 +208,11 @@ const styles = {
     flexDirection: 'column',
     gap: '10px',
   },
+  scheduleContainer: {
+  width: '100%',
+  overflowX: 'auto',
+},
+
   navButton: {
     backgroundColor: '#fff',
     color: '#333',
