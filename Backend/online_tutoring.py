@@ -9,6 +9,7 @@ database to store session details and tutor assignments.
 from firebase_config import db
 from datetime import time
 from firebase_admin import firestore
+import re
 
 # --- Firestore Data Model ---
 #
@@ -60,34 +61,38 @@ def create_online_session(day_of_week, start_time, end_time):
     # 3. Return the ID of the newly created session document.
 
     import re
-    from google.cloud.firestore_v1 import ArrayUnion
     from datetime import datetime
-    
+
     time_pattern = r"^(1[0-2]|0?[1-9]):[0-5][0-9] (AM|PM)$"
 
     # Validate day_of_week
     if day_of_week not in valid_days:
         return {"error": "Invalid day_of_week."}
-    
+
     # Validate start_time and end_time
     if not re.match(time_pattern, start_time) or not re.match(time_pattern, end_time):
         return {"error": "Invalid time format. Use 'H:MM AM/PM'."}
-    
+
     # Convert times to datetime objects for comparison
-    from datetime import datetime as dt
     fmt = "%I:%M %p"
-    start_dt = datetime.strftime(dt.strftime(start_time, fmt))
-    end_dt = datetime.strftime(dt.strftime(end_time, fmt))
+    try:
+        start_dt = datetime.strptime(start_time, fmt)
+        end_dt = datetime.strptime(end_time, fmt)
+    except ValueError:
+        return {"error": "Invalid time format."}
+
     if start_dt >= end_dt:
         return {"error": "Start time must be before end time."}
-    
+
     # Create the session document
     session_ref = db.collection("online_sessions").add({
         "day_of_week": day_of_week,
         "start_time": start_time,
         "end_time": end_time,
-        "tutors": ArrayUnion([])  # Initialize with an empty array
+        "tutors": []
     })
+    session_id = session_ref[1].id if isinstance(session_ref, tuple) else session_ref.id
+    return {"message": "Session created successfully.", "session_id": session_id}
 
 def delete_online_session(session_id):
     """
@@ -122,19 +127,36 @@ def edit_online_session(session_id, new_day=None, new_start_time=None, new_end_t
     Returns:
         dict: A confirmation message.
     """
-    # 1. Find the session document by its session_id.
-    # 2. Create a dictionary of the fields to update.
-    # 3. If new_day is provided, add it to the update dictionary.
-    # 4. If new_start_time and/or new_end_time are provided, add them.
-    #    - Perform validation to ensure times are valid and start < end.
-    # 5. Update the document in Firestore with the new data.
     session_ref = db.collection("online_sessions").document(session_id)
     if not session_ref.get().exists:
         return {"error": "Session not found."}
-    updates = {}
-    if new_day:
-        
 
+    updates = {}
+
+    if new_day:
+        if new_day not in VALID_DAYS:
+            return {"error": "Invalid day of week"}
+        updates["day_of_week"] = new_day
+
+    if new_start_time:
+        if not validate_time_format(new_start_time):
+            return {"error": "Invalid start time format"}
+        updates["start_time"] = new_start_time
+
+    if new_end_time:
+        if not validate_time_format(new_end_time):
+            return {"error": "Invalid end time format"}
+        updates["end_time"] = new_end_time
+
+    if not updates:
+        return {"message": "No valid updates provided"}
+
+    session_ref.update(updates)
+    return {"message": "Session updated successfully"}
+    
+def validate_time_format(time_str):
+    """Validates time in 'H:MM AM/PM' format."""
+    return bool(re.match(r'^(1[0-2]|0?[1-9]):[0-5][0-9] (AM|PM)$', time_str))
 
 def add_tutor_to_session(session_id, tutor_id):
     """
