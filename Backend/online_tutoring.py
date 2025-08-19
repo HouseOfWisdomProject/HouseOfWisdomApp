@@ -134,7 +134,7 @@ def edit_online_session(session_id, new_day=None, new_start_time=None, new_end_t
     updates = {}
 
     if new_day:
-        if new_day not in VALID_DAYS:
+        if new_day not in valid_days:
             return {"error": "Invalid day of week"}
         updates["day_of_week"] = new_day
 
@@ -219,7 +219,7 @@ def remove_tutor_from_session(session_id, tutor_id):
         session_data = session_doc.to_dict()
         tutors = session_data.get("tutors", [])
         
-        if tutor_to_remove = none
+        tutor_to_remove = None
         for tutor in tutors: 
             if tutor.get("tutor_id") == tutor_id:
                 tutor_to_remove = tutor

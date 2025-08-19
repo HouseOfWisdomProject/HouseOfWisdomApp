@@ -16,7 +16,8 @@ from firebase_admin import firestore
 from attendance import get_student_list, take_attendance, edit_attendance, attendance_count
 from attendance_google_sheet import micro_attendance, macro_attendance
 from edit_work_hours import app as edit_work_hours_app
-from online_tutoring import create_online_session, delete_online_session, edit_online_session, add_tutor_to_session, remove_tutor_from_session, get_session_tutors
+from online_tutoring import delete_online_session, add_tutor_to_session
+from online_sessions import create_online_session, delete_online_session, edit_online_session, add_tutor, remove_tutor, get_all_online_sessions
 import logging
 
 # Set up logging
@@ -670,20 +671,20 @@ def remove_tutor_from_session_route(session_id):
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-
+"""
 @app.route('/online_sessions/<session_id>/meet_link', methods=['GET'])
 def get_meet_link_route(session_id):
-    """
+    
     Retrieves the Google Meet link and tutor information for a session.
     Available to students, tutors, and admins.
-    """
+    
     try:
         result = get_google_meets_link(session_id)
         return jsonify(result), 200 if "error" not in result else 404
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+     return jsonify({"error": str(e)}), 500
+"""
 
 
 @app.route('/online_sessions', methods=['GET'])
