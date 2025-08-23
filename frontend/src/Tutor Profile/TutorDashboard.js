@@ -89,58 +89,64 @@ const StaffDashboard = () => {
 };
 
 const styles = {
-container: {
+  container: {
     display: 'flex',
-    height: '100vh',
-    fontFamily: 'sans-serif'
-},
-headerRow: {
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-},
-shiftHeader: {
-  margin: 0,
-  marginTop: '50px'
-},
-logo: {
-  width: '100px',
-  height: 'auto',
-},
-sidebar: {
+    minHeight: '100vh',
+    fontFamily: 'sans-serif',
+    flexWrap: 'wrap',
+  },
+  headerRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: '10px',
+  },
+  shiftHeader: {
+    margin: 0,
+    marginTop: '50px',
+    fontSize: 'clamp(18px, 2vw, 28px)',
+  },
+  logo: {
+    width: '100px',
+    height: 'auto',
+    maxWidth: '100%',
+  },
+  sidebar: {
     width: '250px',
     backgroundColor: '#ffefd5',
     padding: '20px',
     display: 'flex',
     flexDirection: 'column',
-    gap: '20px'
-},
-profileSection: {
+    gap: '20px',
+    flexShrink: 0,
+  },
+  profileSection: {
     display: 'flex',
     alignItems: 'center',
-    gap: '10px'
-},
-profilePic: {
+    gap: '10px',
+    flexWrap: 'wrap',
+  },
+  profilePic: {
     width: '50px',
     height: '50px',
     borderRadius: '50%',
-    backgroundColor: '#ccc'
-},
-viewProfile: {
+    backgroundColor: '#ccc',
+  },
+  viewProfile: {
     backgroundColor: '#000',
     color: '#fff',
     border: 'none',
     padding: '5px 10px',
     fontSize: '12px',
     cursor: 'pointer',
-    marginTop: '-8px'
-},
-navButtons: {
+  },
+  navButtons: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '10px'
-},
-navButton: {
+    gap: '10px',
+  },
+  navButton: {
     backgroundColor: '#fff',
     color: '#333',
     padding: '10px',
@@ -148,31 +154,35 @@ navButton: {
     borderRadius: '5px',
     display: 'flex',
     alignItems: 'center',
-    gap: '10px'
-},
-activeNavButton: {
+    gap: '10px',
+    flexWrap: 'wrap',
+  },
+  activeNavButton: {
     backgroundColor: '#fff',
     borderLeft: '6px solid #f97316',
-    marginLeft: '-6px'
-},
-icon: {
-    fontSize: '16px'
-},
-content: {
+    marginLeft: '-6px',
+  },
+  icon: {
+    fontSize: '16px',
+  },
+  content: {
     flexGrow: 1,
     backgroundColor: '#fff',
-    padding: '30px'
-},
-dashboardContent: {
+    padding: '30px',
+    minWidth: 0,
+    overflowX: 'hidden',
+  },
+  dashboardContent: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '30px'
-},
-buttonRow: {
+    gap: '30px',
+  },
+  buttonRow: {
     display: 'flex',
-    gap: '10px'
-},
-punchButton: {
+    gap: '10px',
+    flexWrap: 'wrap',
+  },
+  punchButton: {
     padding: '15px 30px',
     backgroundColor: '#f97316',
     fontSize: '16px',
@@ -180,40 +190,45 @@ punchButton: {
     color: '#fff',
     borderRadius: '5px',
     cursor: 'pointer',
-    marginTop: '-25px'
-},
-quickAccessRow: {
-    display: 'flex',
-    gap: '40px'
-},
-hoursContainer: {
-    flex: '1'
+    marginTop: '-25px',
   },
-quickAccessContainer: {
-    flex: '2'
-},
-grayBox: {
+  quickAccessRow: {
+    display: 'flex',
+    gap: '40px',
+    flexWrap: 'wrap',
+  },
+  hoursContainer: {
+    flex: 1,
+    minWidth: '250px',
+  },
+  quickAccessContainer: {
+    flex: 2,
+    minWidth: '250px',
+  },
+  grayBox: {
     backgroundColor: '#eee',
     height: '100px',
     borderRadius: '10px',
     padding: '20px',
     marginTop: '10px',
-},
-quickAccessGrid: {
+    overflowX: 'auto',
+  },
+  quickAccessGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(2, 1fr)',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
     gap: '10px',
-    marginTop: '10px'
-},
-quickButton: {
+    marginTop: '10px',
+  },
+  quickButton: {
     padding: '20px',
     backgroundColor: '#f97316',
     color: '#fff',
     fontSize: '15px',
     border: 'none',
     borderRadius: '8px',
-    cursor: 'pointer'
-}
+    cursor: 'pointer',
+  },
 };
+
 
 export default StaffDashboard;

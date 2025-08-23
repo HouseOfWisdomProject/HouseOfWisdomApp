@@ -15,6 +15,17 @@ from datetime import datetime
 from firebase_admin import firestore
 from attendance import get_student_list, take_attendance, edit_attendance, attendance_count
 from attendance_google_sheet import micro_attendance, macro_attendance
+from edit_work_hours import app as edit_work_hours_app
+from online_tutoring import delete_online_session, add_tutor_to_session
+from online_sessions import create_online_session, delete_online_session, edit_online_session, add_tutor, remove_tutor, get_all_online_sessions
+import logging
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+logger.info("Application started")
+logger.warning("This is a warning")
+logger.error("An error occurred")
 
 # Load environment variables from .env file
 load_dotenv()
@@ -22,6 +33,9 @@ FIREBASE_API_KEY = os.getenv('FIREBASE_API_KEY')
 
 app = Flask(__name__)
 CORS(app)
+
+# Register the routes from edit_work_hours.py
+app.register_blueprint(edit_work_hours_app, url_prefix='/work_hours')
 
 # --- Flask Routes for User Account System (F1) ---
 
@@ -297,6 +311,10 @@ def get_work_hours():
         return jsonify(work_hours), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+@app.route('/work_hours/health', methods=['GET'])
+def work_hours_health():
+    return jsonify({"status": "Work Hours API is running"}), 200
 
 #15 Day Summary Route
 @app.route('/15_day_summary/<location>', methods = ['POST'])
@@ -515,6 +533,206 @@ def clockins_today():
         shifts = db.collection('shifts').where('event', '==', 'clock-in').stream()
         today_count = sum(1 for s in shifts if s.to_dict().get('timestamp', '').startswith(today))
         return jsonify({"clock_ins_today": today_count}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# --- Online Tutoring Session Routes ---
+
+@app.route('/online_sessions/create', methods=['POST'])
+def create_online_session_route():
+    """
+    Admin creates a weekly recurring online tutoring session.
+    Expected JSON body:
+    {
+        "admin_uid": "string",
+        "day_of_week": "SATURDAY",
+        "start_time": "15:00",
+        "end_time": "17:00",
+        "session_name": "Math Tutoring Session",
+        "timezone": "America/Los_Angeles"
+    }
+    """
+    try:
+        data = request.get_json()
+        admin_uid = data.get('admin_uid')
+        day_of_week = data.get('day_of_week')
+        start_time = data.get('start_time')
+        end_time = data.get('end_time')
+        session_name = data.get('session_name', 'Online Tutoring Session')
+        timezone = data.get('timezone', 'America/Los_Angeles')
+
+        if not all([admin_uid, day_of_week, start_time, end_time]):
+            return jsonify({"error": "admin_uid, day_of_week, start_time, and end_time are required"}), 400
+
+        result = create_online_session(admin_uid, day_of_week, start_time, end_time, session_name, timezone)
+        return jsonify(result), 200 if "error" not in result else 400
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/online_sessions/<session_id>', methods=['DELETE'])
+def delete_online_session_route(session_id):
+    """
+    Admin deletes an online tutoring session.
+    Query parameter: admin_uid
+    """
+    try:
+        admin_uid = request.args.get('admin_uid')
+        if not admin_uid:
+            return jsonify({"error": "admin_uid query parameter is required"}), 400
+
+        result = delete_online_session(admin_uid, session_id)
+        return jsonify(result), 200 if "error" not in result else 400
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/online_sessions/<session_id>/edit', methods=['PUT'])
+def edit_online_session_route(session_id):
+    """
+    Admin edits an online tutoring session.
+    Expected JSON body:
+    {
+        "admin_uid": "string",
+        "updates": {
+            "day_of_week": "SUNDAY",
+            "start_time": "14:00",
+            "end_time": "16:00",
+            "session_name": "Updated Session Name"
+        }
+    }
+    """
+    try:
+        data = request.get_json()
+        admin_uid = data.get('admin_uid')
+        updates = data.get('updates', {})
+
+        if not admin_uid:
+            return jsonify({"error": "admin_uid is required"}), 400
+
+        if not updates:
+            return jsonify({"error": "updates object is required"}), 400
+
+        result = edit_online_session(admin_uid, session_id, updates)
+        return jsonify(result), 200 if "error" not in result else 400
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/online_sessions/<session_id>/add_tutor', methods=['POST'])
+def add_tutor_to_session_route(session_id):
+    """
+    Admin adds a tutor to an online session.
+    Expected JSON body:
+    {
+        "admin_uid": "string",
+        "tutor_uid": "string"
+    }
+    """
+    try:
+        data = request.get_json()
+        admin_uid = data.get('admin_uid')
+        tutor_uid = data.get('tutor_uid')
+
+        if not all([admin_uid, tutor_uid]):
+            return jsonify({"error": "admin_uid and tutor_uid are required"}), 400
+
+        result = add_tutor(admin_uid, session_id, tutor_uid)
+        return jsonify(result), 200 if "error" not in result else 400
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/online_sessions/<session_id>/remove_tutor', methods=['POST'])
+def remove_tutor_from_session_route(session_id):
+    """
+    Admin removes a tutor from an online session.
+    Expected JSON body:
+    {
+        "admin_uid": "string",
+        "tutor_uid": "string"
+    }
+    """
+    try:
+        data = request.get_json()
+        admin_uid = data.get('admin_uid')
+        tutor_uid = data.get('tutor_uid')
+
+        if not all([admin_uid, tutor_uid]):
+            return jsonify({"error": "admin_uid and tutor_uid are required"}), 400
+
+        result = remove_tutor(admin_uid, session_id, tutor_uid)
+        return jsonify(result), 200 if "error" not in result else 400
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+"""
+@app.route('/online_sessions/<session_id>/meet_link', methods=['GET'])
+def get_meet_link_route(session_id):
+    
+    Retrieves the Google Meet link and tutor information for a session.
+    Available to students, tutors, and admins.
+    
+    try:
+        result = get_google_meets_link(session_id)
+        return jsonify(result), 200 if "error" not in result else 404
+
+    except Exception as e:
+     return jsonify({"error": str(e)}), 500
+"""
+
+
+@app.route('/online_sessions', methods=['GET'])
+def get_all_sessions_route():
+    """
+    Retrieves all online sessions.
+    Query parameters:
+    - admin_uid (optional): For admin-level access
+    - status (optional): Filter by status (active, inactive, all) - defaults to active
+    """
+    try:
+        admin_uid = request.args.get('admin_uid')
+        status = request.args.get('status', 'active')
+
+        result = get_all_online_sessions(admin_uid, status)
+        return jsonify(result), 200 if "error" not in result else 400
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/online_sessions/tutor/<tutor_uid>', methods=['GET'])
+def get_tutor_sessions_route(tutor_uid):
+    """
+    Retrieves all sessions assigned to a specific tutor.
+    """
+    try:
+        sessions = db.collection('online_sessions').where('tutors', 'array_contains', tutor_uid).get()
+        tutor_sessions = []
+        
+        for session_doc in sessions:
+            session_data = session_doc.to_dict()
+            tutor_sessions.append({
+                'session_id': session_data['session_id'],
+                'session_name': session_data.get('session_name', ''),
+                'day_of_week': session_data.get('day_of_week', ''),
+                'start_time': session_data.get('start_time', ''),
+                'end_time': session_data.get('end_time', ''),
+                'google_meet_link': session_data.get('google_meet_link', ''),
+                'status': session_data.get('status', '')
+            })
+        
+        return jsonify({
+            "tutor_uid": tutor_uid,
+            "sessions": tutor_sessions,
+            "count": len(tutor_sessions)
+        }), 200
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

@@ -170,13 +170,16 @@ const JuniorPMDashboard = () => {
 const styles = {
   container: {
     display: 'flex',
-    height: '100vh',
-    fontFamily: 'sans-serif'
+    minHeight: '100vh',
+    fontFamily: 'sans-serif',
+    flexWrap: 'wrap'
   },
   headerRow: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: '10px'
   },
   shiftHeader: {
     margin: 0,
@@ -185,6 +188,7 @@ const styles = {
   logo: {
     width: '100px',
     height: 'auto',
+    maxWidth: '100%'
   },
   sidebar: {
     width: '250px',
@@ -192,12 +196,17 @@ const styles = {
     padding: '20px',
     display: 'flex',
     flexDirection: 'column',
-    gap: '20px'
+    gap: '20px',
+    flexShrink: 0,
+    height: '100vh',
+    position: 'sticky',
+    top: 0
   },
   profileSection: {
     display: 'flex',
     alignItems: 'center',
-    gap: '10px'
+    gap: '10px',
+    flexWrap: 'wrap'
   },
   profilePic: {
     width: '50px',
@@ -211,8 +220,7 @@ const styles = {
     border: 'none',
     padding: '5px 10px',
     fontSize: '12px',
-    cursor: 'pointer',
-    marginTop: '-8px'
+    cursor: 'pointer'
   },
   navButtons: {
     display: 'flex',
@@ -240,7 +248,8 @@ const styles = {
   content: {
     flexGrow: 1,
     backgroundColor: '#fff',
-    padding: '30px'
+    padding: '30px',
+    minWidth: 0
   },
   dashboardContent: {
     display: 'flex',
@@ -249,23 +258,29 @@ const styles = {
   },
   quickAccessRow: {
     display: 'flex',
-    gap: '40px'
+    gap: '40px',
+    flexWrap: 'wrap'
   },
   hoursContainer: {
-    flex: '1'
+    flex: 1,
+    minWidth: '250px'
+  },
+  quickAccessContainer: {
+    flex: 2,
+    minWidth: '250px'
   },
   quickButton: {
     padding: '20px',
     backgroundColor: '#f97316',
     color: '#fff',
-    fontSize: '15px',
+    fontSize: '15px', // Keep original size
     border: 'none',
     borderRadius: '8px',
     cursor: 'pointer'
   },
   staffTable: {
     display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
     gap: '10px'
   },
   staffRow: {
@@ -275,15 +290,15 @@ const styles = {
     padding: '10px',
     border: '1px solid #eee',
     borderRadius: '5px',
-    backgroundColor: '#fafafa'
+    backgroundColor: '#fafafa',
+    flexWrap: 'wrap'
   },
   staffName: {
     cursor: 'pointer',
     color: '#000000'
   },
-  
   punchButton: {
-    padding: '8px 16px',
+    padding: '8px 16px', // Keep original size
     backgroundColor: '#f97316',
     color: '#fff',
     border: 'none',
@@ -296,20 +311,19 @@ const styles = {
     padding: '20px',
     backgroundColor: '#ffefd5',
     borderRadius: '10px',
-    width: '300px'
+    width: '100%',
+    maxWidth: '300px'
   },
   profileHeader: {
     fontWeight: 'bold',
-    fontSize: '18px',
+    fontSize: '18px', // Keep original size
     marginBottom: '10px'
   },
   profileBody: {
     display: 'flex',
     gap: '15px',
-    alignItems: 'flex-start'
-  },
-  quickAccessContainer: {
-    flex: '2'
+    alignItems: 'flex-start',
+    flexWrap: 'wrap'
   },
   grayBox: {
     backgroundColor: '#eee',
@@ -317,10 +331,11 @@ const styles = {
     borderRadius: '10px',
     padding: '20px',
     marginTop: '10px',
+    overflowX: 'auto'
   },
   quickAccessGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(2, 1fr)',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
     gap: '10px',
     marginTop: '10px'
   }

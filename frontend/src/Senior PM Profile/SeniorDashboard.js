@@ -143,20 +143,24 @@ const styles = {
   container: {
     display: 'flex',
     minHeight: '100vh',
-    fontFamily: 'sans-serif',
+    fontFamily: 'sans-serif'
   },
   headerRow: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: '10px'
   },
   shiftHeader: {
     margin: 0,
     marginTop: '50px',
+    fontSize: 'clamp(18px, 2vw, 28px)'
   },
   logo: {
     width: '100px',
     height: 'auto',
+    maxWidth: '100%'
   },
   sidebar: {
     width: '250px',
@@ -166,11 +170,15 @@ const styles = {
     flexDirection: 'column',
     gap: '20px',
     flexShrink: 0,
+    position: 'sticky',
+    top: 0,
+    height: '100vh'
   },
   profileSection: {
     display: 'flex',
     alignItems: 'center',
     gap: '10px',
+    flexWrap: 'wrap'
   },
   profilePic: {
     width: '50px',
@@ -186,6 +194,7 @@ const styles = {
     fontSize: '12px',
     cursor: 'pointer',
     marginTop: '-8px',
+    cursor: 'pointer'
   },
   navButtons: {
     display: 'flex',
@@ -214,6 +223,7 @@ const styles = {
     flexGrow: 1,
     backgroundColor: '#fff',
     padding: '30px',
+    minWidth: 0
   },
   dashboardContent: {
     display: 'flex',
@@ -232,6 +242,15 @@ const styles = {
     gridTemplateColumns: 'repeat(2, 1fr)',
     gap: '10px',
     marginTop: '10px',
+    flexWrap: 'wrap'
+  },
+  hoursContainer: {
+    flex: 1,
+    minWidth: '250px'
+  },
+  quickAccessContainer: {
+    flex: 2,
+    minWidth: '250px'
   },
   quickButton: {
     padding: '20px',
@@ -242,12 +261,66 @@ const styles = {
     borderRadius: '8px',
     cursor: 'pointer',
   },
+  staffTable: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+    gap: '10px'
+  },
+  staffRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '10px',
+    border: '1px solid #eee',
+    borderRadius: '5px',
+    backgroundColor: '#fafafa',
+    flexWrap: 'wrap'
+  },
+  staffName: {
+    cursor: 'pointer',
+    color: '#000000'
+  },
+  punchButton: {
+    padding: '8px 16px',
+    backgroundColor: '#f97316',
+    color: '#fff',
+    border: 'none',
+    borderRadius: '5px',
+    marginLeft: '5px',
+    cursor: 'pointer'
+  },
+  profileModal: {
+    marginTop: '20px',
+    padding: '20px',
+    backgroundColor: '#ffefd5',
+    borderRadius: '10px',
+    width: '100%',
+    maxWidth: '300px'
+  },
+  profileHeader: {
+    fontWeight: 'bold',
+    fontSize: '18px',
+    marginBottom: '10px'
+  },
+  profileBody: {
+    display: 'flex',
+    gap: '15px',
+    alignItems: 'flex-start',
+    flexWrap: 'wrap'
+  },
   grayBox: {
     backgroundColor: '#eee',
     height: '100px',
     borderRadius: '10px',
     padding: '20px',
     marginTop: '10px',
+    overflowX: 'auto'
+  },
+  quickAccessGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+    gap: '10px',
+    marginTop: '10px'
   }
 };
 
