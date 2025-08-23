@@ -1,21 +1,24 @@
 import React, { useState, useEffect } from 'react';
 
-const Payroll = () => {
+const SeniorPayroll = () => {
   const [payrollData, setPayrollData] = useState([]);
   const [googleFormUrl, setGoogleFormUrl] = useState("");
 
-  // Replace with your actual user role and assigned locations from auth context
-  const userRole = "senior_pm"; 
-  const userLocations = ["LocationA", "LocationB"]; 
+  // Replace with actual auth info
+  const userLocations = ["LocationA", "LocationB"];
 
   useEffect(() => {
-    // Fetch approvals
     fetch("/payroll/approvals")
       .then(res => res.json())
-      .then(data => setPayrollData(Object.values(data)))
+      .then(data => {
+        // Filter so Senior PM only sees their locations
+        const filtered = Object.values(data).filter(loc => 
+          userLocations.includes(loc.location)
+        );
+        setPayrollData(filtered);
+      })
       .catch(() => setPayrollData([]));
 
-    // Fetch Google Form URL config
     fetch("/config")
       .then(res => res.json())
       .then(cfg => setGoogleFormUrl(cfg.google_form_url))
@@ -26,7 +29,7 @@ const Payroll = () => {
     fetch(`/payroll/approve/${location}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ role: userRole, locations: userLocations }),
+      body: JSON.stringify({ role: "senior_pm" }),
     })
     .then(res => res.json())
     .then(msg => {
@@ -40,8 +43,23 @@ const Payroll = () => {
     .catch(() => alert("Failed to approve payroll."));
   };
 
+  const notifyAdmin = () => {
+    fetch("/payroll/notify-admin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role: "senior_pm" }),
+    })
+    .then(res => res.json())
+    .then(msg => alert(msg.message))
+    .catch(() => alert("Failed to notify admin."));
+  };
+
+  const allApproved = payrollData.length > 0 && payrollData.every(d => d.status === "approved");
+
   return (
     <div style={styles.container}>
+      <h2>Payroll Validation (My Locations)</h2>
+
       {googleFormUrl && (
         <a href={googleFormUrl} target="_blank" rel="noopener noreferrer" style={styles.link}>
           Access Google Form Repository
@@ -68,7 +86,7 @@ const Payroll = () => {
               <td style={styles.td}>{loc.status || "pending"}</td>
               <td style={styles.td}>
                 {loc.status !== "approved" && (
-                  <button style={styles.punchButton} onClick={() => approveLocation(loc.location)}>
+                  <button style={styles.button} onClick={() => approveLocation(loc.location)}>
                     Approve
                   </button>
                 )}
@@ -77,6 +95,12 @@ const Payroll = () => {
           ))}
         </tbody>
       </table>
+
+      {allApproved && (
+        <button style={{ ...styles.button, marginTop: "20px" }} onClick={notifyAdmin}>
+          Notify Admin Payroll Ready
+        </button>
+      )}
     </div>
   );
 };
@@ -106,7 +130,7 @@ const styles = {
     borderBottom: '1px solid #eee',
     padding: '10px',
   },
-  punchButton: {
+  button: {
     padding: '8px 15px',
     backgroundColor: '#e97634ff',
     color: '#fff',
@@ -116,4 +140,4 @@ const styles = {
   },
 };
 
-export default Payroll;
+export default SeniorPayroll;
