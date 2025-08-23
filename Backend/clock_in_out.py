@@ -54,7 +54,14 @@ def get_location_roster(location):
         if doc.id not in user_map:
             user_map[doc.id] = doc.to_dict()
 
-    return list(user_map.values())
+    # Add uid to each dict for frontend
+    roster_list = []
+    for uid, info in user_map.items():
+        info['uid'] = uid
+        info['checkedIn'] = False
+        roster_list.append(info)
+
+    return roster_list
 
 
 #15 Day Summary

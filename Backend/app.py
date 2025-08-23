@@ -1,5 +1,5 @@
 import os
-from dotlenv import load_dotenv 
+from dotenv import load_dotenv 
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import requests
@@ -20,7 +20,7 @@ from attendance_google_sheet import micro_attendance, macro_attendance
 load_dotenv()
 FIREBASE_API_KEY = os.getenv('FIREBASE_API_KEY')
 
-app = Flask(__name__, static_folder='../frontend/build',static_url_path='/')
+app = Flask(__name__)
 CORS(app)
 
 # --- Flask Routes for User Account System (F1) ---

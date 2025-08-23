@@ -1,32 +1,17 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { FaHome, FaCalendarAlt, FaEllipsisH, FaUsers, FaClock, FaUser, FaMoneyBill } from 'react-icons/fa';
+import { useNavigate } from 'react-router-dom';
 
 import Calendar from '../components/Calendar';
 import StudentAttendance from '../components/StudentAttendance';
 import StaffClockIn_Out from '../components/StaffClockInOut';
-import Payroll from '../components/Payroll';
+import AdminPayroll from './AdminPayroll';
 
 const AdminDashboard = () => {
+  // need to clean this up
   const [activeTab, setActiveTab] = useState('Dashboard');
   const [selectedStaff, setSelectedStaff] = useState(null);
-  const profileRef = useRef();
-
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (profileRef.current && !profileRef.current.contains(event.target)) {
-        setSelectedStaff(null);
-      }
-    };
-    if (selectedStaff) {
-      document.addEventListener('mousedown', handleClickOutside);
-    } else {
-      document.removeEventListener('mousedown', handleClickOutside);
-    }
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [selectedStaff]);
-
+  const navigate = useNavigate();
   const renderContent = () => {
     switch (activeTab) {
       case 'Dashboard':
@@ -40,7 +25,12 @@ const AdminDashboard = () => {
               <div style={styles.quickAccessContainer}>
                 <h3>Quick Access</h3>
                 <div style={styles.quickAccessGrid}>
-                  <button style={styles.quickButton}>+ Create a HOW Account</button>
+                  <button 
+                    style={styles.quickButton} 
+                    onClick={() => navigate('/admin/createprofile')}
+                  >
+                    + Create a HOW Account
+                  </button>
                   <button style={styles.quickButton}>Student Reports</button>
                   <button style={styles.quickButton}>Google Meets</button>
                   <button style={styles.quickButton}>Contact Information</button>
@@ -90,7 +80,7 @@ const AdminDashboard = () => {
               <h2 style={styles.shiftHeader}>Payroll Validation and Summary</h2>
               <img src="/HOW-Logo.png" alt="HOW Logo" style={styles.logo} />
             </div>
-            <Payroll />
+            <AdminPayroll />
           </div>
         );
       case 'Shift Coverage':
@@ -157,7 +147,7 @@ const AdminDashboard = () => {
 const styles = {
   container: {
     display: 'flex',
-    height: '100vh',
+    minHeight: '100vh',
     fontFamily: 'sans-serif',
   },
   headerRow: {
@@ -180,6 +170,8 @@ const styles = {
     display: 'flex',
     flexDirection: 'column',
     gap: '20px',
+    flexShrink: 0,
+
   },
   profileSection: {
     display: 'flex',
@@ -206,6 +198,10 @@ const styles = {
     flexDirection: 'column',
     gap: '10px',
   },
+  scheduleContainer: {
+  width: '100%',
+  overflowX: 'auto',
+},
   navButton: {
     backgroundColor: '#fff',
     color: '#333',

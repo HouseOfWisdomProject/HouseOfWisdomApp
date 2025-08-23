@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-const StudentLoginPage = () => {
+const StudentLogin = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const navigate = useNavigate();
@@ -20,7 +20,7 @@ const StudentLoginPage = () => {
 
         <input
           type="text"
-          placeholder="Username or Email"
+          placeholder="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           style={styles.input}
@@ -120,4 +120,4 @@ link: {
 },
 };
 
-export default StudentLoginPage;
+export default StudentLogin;
