@@ -4,6 +4,8 @@ import axios from 'axios';
 const StaffClockInOut = () => {
   const [staffList, setStaffList] = useState([]);
   const [selectedStaff, setSelectedStaff] = useState(null);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [manualEntry, setManualEntry] = useState({ firstName: '', lastName: '', action: 'clock_in' });
   const [location] = useState('DefaultLocation'); // fixed location
   const [statusMessage, setStatusMessage] = useState('');
   const profileRef = useRef();
@@ -56,8 +58,31 @@ const StaffClockInOut = () => {
     }
   };
 
+  const handleManualSubmit = async () => {
+    try {
+      if (manualEntry.action === 'clock_in') {
+        await axios.post('/clock_in', { user_id: manualEntry.firstName + manualEntry.lastName, location, role: 'staff' });
+        setStatusMessage('Manual clock-in recorded!');
+      } else {
+        await axios.post('/clock_out', { user_id: manualEntry.firstName + manualEntry.lastName, location, role: 'staff' });
+        setStatusMessage('Manual clock-out recorded!');
+      }
+      setTimeout(() => setStatusMessage(''), 3000);
+      setShowAddModal(false);
+      setManualEntry({ firstName: '', lastName: '', action: 'clock_in' });
+    } catch (err) {
+      console.error('Manual entry failed:', err);
+      setStatusMessage('Manual entry failed.');
+      setTimeout(() => setStatusMessage(''), 3000);
+    }
+  };
+
   return (
     <div style={styles.container}>
+      <div style={styles.header}>
+        <button style={styles.addButton} onClick={() => setShowAddModal(true)}>+ Add Time</button>
+      </div>
+
       {statusMessage && <p style={styles.message}>{statusMessage}</p>}
 
       <div style={styles.staffGrid}>
@@ -88,19 +113,41 @@ const StaffClockInOut = () => {
             <div style={styles.profileBody}>
               <div style={styles.profilePic}></div>
               <div>
-                <p>
-                  <strong>Name:</strong> {selectedStaff.firstName} {selectedStaff.lastName}
-                </p>
-                <p>
-                  <strong>Status:</strong> {selectedStaff.checkedIn ? '✅ Clocked In' : '❌ Not Clocked In'}
-                </p>
-                <p>
-                  <strong>Location:</strong> {location}
-                </p>
-                <p>
-                  <strong>Hours this Week:</strong> {selectedStaff.hours ?? 'N/A'}
-                </p>
+                <p><strong>Name:</strong> {selectedStaff.firstName} {selectedStaff.lastName}</p>
+                <p><strong>Status:</strong> {selectedStaff.checkedIn ? '✅ Clocked In' : '❌ Not Clocked In'}</p>
+                <p><strong>Location:</strong> {location}</p>
+                <p><strong>Hours this Week:</strong> {selectedStaff.hours ?? 'N/A'}</p>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showAddModal && (
+        <div style={styles.modalOverlay} onClick={() => setShowAddModal(false)}>
+          <div style={styles.profileModal} onClick={(e) => e.stopPropagation()}>
+            <div style={styles.profileHeader}>Manual Time Entry</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <input 
+                type="text" 
+                placeholder="First Name" 
+                value={manualEntry.firstName} 
+                onChange={(e) => setManualEntry({ ...manualEntry, firstName: e.target.value })}
+              />
+              <input 
+                type="text" 
+                placeholder="Last Name" 
+                value={manualEntry.lastName} 
+                onChange={(e) => setManualEntry({ ...manualEntry, lastName: e.target.value })}
+              />
+              <select 
+                value={manualEntry.action} 
+                onChange={(e) => setManualEntry({ ...manualEntry, action: e.target.value })}
+              >
+                <option value="clock_in">Clock In</option>
+                <option value="clock_out">Clock Out</option>
+              </select>
+              <button style={styles.clockInBtn} onClick={handleManualSubmit}>Submit</button>
             </div>
           </div>
         </div>
@@ -114,6 +161,17 @@ const styles = {
     padding: '20px', 
     fontFamily: 'Arial, sans-serif', 
     textAlign: 'center' 
+  },
+  addButton: {
+    backgroundColor: '#ec8749ff',
+    color: 'white',
+    border: 'none',
+    padding: '8px 12px',
+    borderRadius: '5px',
+    cursor: 'pointer',
+    position: 'absolute',  
+    right: '40px',         
+    top: '160px',            
   },
   message: { 
     color: 'green', 
@@ -179,7 +237,7 @@ const styles = {
     border: '2px solid #707070',
     fontSize: '17px',
     width: '300px',
-    padding: '30px 60px',
+    padding: '30px 40px',
     boxShadow: '0 4px 8px rgba(0,0,0,0.2)'
   },
   profileHeader: { 
