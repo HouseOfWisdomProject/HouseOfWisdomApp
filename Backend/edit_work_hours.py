@@ -10,13 +10,16 @@ then handles the necessary Firestore database operations based on the provided
 information, without exposing technical details like Firebase UIDs to the end-user.
 """
 
+# Import necessary tools for handling dates, connecting to the database, and Google Sheets
 from datetime import datetime, timedelta
 from firebase_config import db
 from clock_in_out import get_location_roster
-# You would also need to import your Google Sheets client (e.g., gspread)
-# from logging_google_sheets import get_gspread_client
+from logging_google_sheets import get_gspread_client
+import gspread
+from flask import Flask, request, jsonify
 
-def regenerate_log_sheet(location):
+
+def _regenerate_log_sheet(location):
     """
     (New Helper Function)
     Rewrites the entire log sheet for a given location for the current pay period.
@@ -26,73 +29,306 @@ def regenerate_log_sheet(location):
     Args:
         location (str): The location for which to regenerate the sheet.
     """
-    # Implementation would involve:
-    # 1. Getting the gspread client.
-    # 2. Opening the "House of Wisdom Log" workbook.
-    # 3. Determining the current pay period (e.g., Aug 1-15 or Aug 16-31) and sheet name.
-    # 4. Fetching ALL shifts from Firestore for the given 'location' within the entire pay period.
-    # 5. Getting the worksheet by its name. If it doesn't exist, create it.
-    # 6. Clearing all data from the worksheet.
-    # 7. Writing the header row back to the sheet.
-    # 8. Formatting the fetched Firestore shifts into rows.
-    # 9. Writing all the fresh rows to the sheet in a single batch update.
-    pass
+    try:
+        # Get the authorized connection to the Google Sheets API
+        client = get_gspread_client()
+        if not client:
+            # If the connection fails, stop the function and report an error
+            raise Exception("Failed to connect to Google Sheets.")
+
+        # Open the specific Google Sheets workbook by its name
+        workbook = client.open("House of Wisdom Log")
+
+        # Get today's date to figure out the current pay period
+        today = datetime.now().date()
+        # Check if the day is after the 15th to determine the pay period
+        if today.day > 15:
+            # If it's after the 15th, the period is the 16th to the end of the month
+            start_date = today.replace(day=16)
+            end_date = (today.replace(day=1) + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+        else:
+            # Otherwise, the period is the 1st to the 15th
+            start_date = today.replace(day=1)
+            end_date = today.replace(day=15)
+        
+        # Create the exact name for the worksheet, e.g., "Everett - 2025-08-01 to 2025-08-15"
+        sheet_name = f"{location} - {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}"
+
+        try:
+            # Try to select the worksheet with that name
+            worksheet = workbook.worksheet(sheet_name)
+        except gspread.exceptions.WorksheetNotFound:
+            # If the worksheet doesn't exist, create a new one
+            worksheet = workbook.add_worksheet(title=sheet_name, rows="250", cols="10")
+
+        # Delete all data currently in the sheet
+        worksheet.clear()
+        # Define the header columns in order
+        header = ["Location", "Role", "First Name", "Last Name", "Timestamp", "Status"]
+        # Add the header as the first row in the now-empty sheet
+        worksheet.append_row(header, value_input_option='USER_ENTERED')
+
+        # To work efficiently, first get all users at the location and store them in a map.
+        # This avoids asking the database for a user's name every time we see their ID.
+        users_ref = db.collection('users').where('tutoringLocation', 'array_contains', location).stream()
+        users_map = {user.id: user.to_dict() for user in users_ref}
+        
+        # Define the exact start and end times for the database query
+        start_datetime_iso = datetime.combine(start_date, datetime.min.time()).isoformat()
+        end_datetime_iso = datetime.combine(end_date, datetime.max.time()).isoformat()
+
+        # Ask Firestore for all shifts at this location within the pay period, sorted by time
+        shifts_query = db.collection('shifts').where('location', '==', location).where('timestamp', '>=', start_datetime_iso).where('timestamp', '<=', end_datetime_iso).order_by('timestamp').stream()
+        
+        # Create an empty list to hold all the rows we're about to create
+        rows_to_append = []
+        # Loop through every single shift record that the database returned
+        for shift in shifts_query:
+            # Convert the Firestore document object into a more usable Python dictionary
+            shift_data = shift.to_dict()
+            # Get the user's unique ID from the shift record
+            user_id = shift_data.get('user_id')
+            # Look up that user's info (name, role) in the map we created earlier
+            user_info = users_map.get(user_id)
+            
+            # Make sure we found the user's info before proceeding
+            if user_info:
+                # Assemble a list of values for the row in the correct order
+                row = [
+                    shift_data.get("location", ""),
+                    user_info.get("role", ""),
+                    user_info.get("firstName", ""),
+                    user_info.get("lastName", ""),
+                    shift_data.get("timestamp"),
+                    shift_data.get("event")  # This will be 'clock-in' or 'clock-out'
+                ]
+                # Add the newly created row to our list of rows to append
+                rows_to_append.append(row)
+        
+        # If the list of rows is not empty...
+        if rows_to_append:
+            # ...add all the rows to the Google Sheet in a single, efficient operation
+            worksheet.append_rows(rows_to_append, value_input_option='USER_ENTERED')
+        
+        # Return a success message
+        return {"message": f"Sheet for {location} regenerated successfully."}
+
+    except Exception as e:
+        # If any part of the 'try' block fails, this code runs
+        print(f"Error regenerating sheet for {location}: {e}")
+        return {"error": str(e)}
+
 
 def find_user_by_name(location, first_name, last_name):
     """
     Helper function to find a user's ID and role by their name and location.
     """
-    # Implementation would involve:
-    # 1. Calling get_location_roster(location) to get all users for the location.
-    # 2. Iterating through the roster to find a user where 'firstName' and 'lastName' match.
-    # 3. Returning the 'id' and 'role' of the matched user.
-    pass
+    try:
+        # Point to the 'users' collection in the database
+        users_ref = db.collection('users')
+        # Build a query to find a user where location, first name, and last name all match
+        query = users_ref.where('tutoringLocation', 'array_contains', location).where('firstName', '==', first_name).where('lastName', '==', last_name)
+        # Execute the query
+        docs = query.stream()
+        # Get the first result from the query, or None if no user was found
+        user = next(docs, None)
+        # If a user was found...
+        if user:
+            # ...return a dictionary with their unique ID and their role
+            return {'id': user.id, 'role': user.to_dict().get('role')}
+        # If no user was found, return None
+        return None
+    except Exception as e:
+        print(f"Error finding user by name: {e}")
+        return None
+
 
 def find_shifts_for_user(user_id, date):
     """
     Helper function to retrieve all shifts for a specific user on a given date.
+    Returns paired clock-in/out events.
     """
-    # Implementation would involve:
-    # 1. Querying the 'shifts' collection in Firestore.
-    # 2. Filtering by 'user_id' and the date range for the given day.
-    # 3. Pairing up 'clock-in' and 'clock-out' events.
-    # 4. Returning a list of shifts, including the document IDs for each event.
-    pass
+    try:
+        # Get the exact start (midnight) and end (11:59:59 PM) of the given date
+        start_dt = datetime.fromisoformat(f"{date}T00:00:00")
+        end_dt = datetime.fromisoformat(f"{date}T23:59:59")
+        
+        # Ask the database for all shifts for this user on this day, sorted by time
+        shifts_query = db.collection('shifts').where('user_id', '==', user_id).where('timestamp', '>=', start_dt.isoformat()).where('timestamp', '<=', end_dt.isoformat()).order_by('timestamp').stream()
+        
+        # Get all the found shifts into a list to easily work with them
+        shifts = list(shifts_query)
+        # Create an empty list to store the final, paired-up shifts
+        paired_shifts = []
+        
+        # A counter to keep track of our position in the list of shifts
+        i = 0
+        # Loop through the list of shifts as long as our counter is valid
+        while i < len(shifts):
+            # Get the current shift document and its data
+            shift_doc = shifts[i]
+            shift_data = shift_doc.to_dict()
+            # Check if the current shift is a 'clock-in'
+            if shift_data.get('event') == 'clock-in':
+                # If it is, this is the start of a potential pair
+                clock_in_doc = shift_doc
+                # Check if there is a next item in the list AND if that item is a 'clock-out'
+                if i + 1 < len(shifts) and shifts[i+1].to_dict().get('event') == 'clock-out':
+                    # If so, we have found a complete pair
+                    clock_out_doc = shifts[i+1]
+                    # Create a dictionary holding all the info for this single shift
+                    paired_shifts.append({
+                        'clock_in_id': clock_in_doc.id,
+                        'clock_out_id': clock_out_doc.id,
+                        'start_time': clock_in_doc.to_dict()['timestamp'],
+                        'end_time': clock_out_doc.to_dict()['timestamp']
+                    })
+                    # We've processed two items (in and out), so jump ahead by 2
+                    i += 2
+                else:
+                    # If we found a clock-in but no matching clock-out, it's an incomplete shift.
+                    # Just move to the next item to keep searching.
+                    i += 1
+            else:
+                # If the current item is not a 'clock-in', just move to the next one
+                i += 1
+        # Return the list of complete, paired shifts
+        return paired_shifts
+    except Exception as e:
+        print(f"Error finding shifts for user: {e}")
+        return []
 
-def edit_work_hours(location, first_name, last_name, date, shift_id, new_start_time, new_end_time):
+def edit_work_hours(location, clock_in_id, clock_out_id, new_start_time, new_end_time):
     """
     Allows a Senior PM to edit the clock-in and clock-out times for a specific shift.
     """
-    # Implementation would involve:
-    # 1. Finding the user's ID using find_user_by_name.
-    # 2. Querying the 'shifts' collection to find the clock-in and clock-out
-    #    documents that correspond to the given shift_id.
-    # 3. Updating the 'timestamp' field of the clock-in document with new_start_time.
-    # 4. Updating the 'timestamp' field of the clock-out document with new_end_time.
-    # 5. Calling _regenerate_log_sheet(location) to ensure the Google Sheet is updated.
-    pass
+    try:
+        # Find the clock-in document by its ID and update its timestamp
+        db.collection('shifts').document(clock_in_id).update({'timestamp': new_start_time})
+        # Find the clock-out document by its ID and update its timestamp
+        db.collection('shifts').document(clock_out_id).update({'timestamp': new_end_time})
+        
+        # Call our helper function to update the Google Sheet with the corrected data
+        _regenerate_log_sheet(location)
+        
+        # Return a success message
+        return {"message": "Shift updated successfully."}
+    except Exception as e:
+        print(f"Error editing work hours: {e}")
+        return {"error": str(e)}
 
-def remove_shift(location, first_name, last_name, date, shift_id):
+def remove_shift(location, clock_in_id, clock_out_id):
     """
     Removes a specific shift (both clock-in and clock-out records) for a user.
     """
-    # Implementation would involve:
-    # 1. Finding the user's ID using find_user_by_name.
-    # 2. Identifying the document IDs for the clock-in and clock-out events
-    #    associated with the shift_id.
-    # 3. Deleting both the clock-in and clock-out documents from the 'shifts' collection.
-    # 4. Calling _regenerate_log_sheet(location) to ensure the Google Sheet is updated.
-    pass
+    try:
+        # Find the clock-in document by its ID and delete it
+        db.collection('shifts').document(clock_in_id).delete()
+        # Find the clock-out document by its ID and delete it
+        db.collection('shifts').document(clock_out_id).delete()
 
-def add_shift(location, first_name, last_name, date, start_time, end_time):
+        # Call our helper function to update the Google Sheet so the shift is removed
+        _regenerate_log_sheet(location)
+        
+        # Return a success message
+        return {"message": "Shift removed successfully."}
+    except Exception as e:
+        print(f"Error removing shift: {e}")
+        return {"error": str(e)}
+
+
+def add_shift(location, first_name, last_name, start_time, end_time):
     """
     Adds a new shift (clock-in and clock-out) for a user on a specified day.
     """
-    # Implementation would involve:
-    # 1. Finding the user's ID and role using find_user_by_name.
-    # 2. Creating a new document in the 'shifts' collection for the 'clock-in' event,
-    #    with the user_id, role, location, and start_time.
-    # 3. Creating another new document in the 'shifts' collection for the 'clock-out' event,
-    #    with the user_id, role, location, and end_time.
-    # 4. Calling _regenerate_log_sheet(location) to ensure the Google Sheet is updated.
-    pass
+    try:
+        # First, find the user's info using their name and location
+        user_info = find_user_by_name(location, first_name, last_name)
+        # If no user is found, stop and return an error
+        if not user_info:
+            return {"error": "User not found."}
+        
+        # Get the user's unique ID and role from the info we found
+        user_id = user_info['id']
+        role = user_info['role']
+        
+        # Create the 'clock-in' record in the database
+        db.collection('shifts').add({
+            'event': 'clock-in',
+            'user_id': user_id,
+            'timestamp': start_time,
+            'location': location,
+            'role': role
+        })
+        
+        # Create the 'clock-out' record in the database
+        db.collection('shifts').add({
+            'event': 'clock-out',
+            'user_id': user_id,
+            'timestamp': end_time,
+            'location': location,
+            'role': role
+        })
+
+        # Call our helper function to update the Google Sheet with the new shift included
+        _regenerate_log_sheet(location)
+        
+        # Return a success message
+        return {"message": "Shift added successfully."}
+    except Exception as e:
+        print(f"Error adding shift: {e}")
+        return {"error": str(e)}
+
+# Initialize Flask app
+app = Flask(__name__)
+
+@app.route('/get_shifts', methods=['GET'])
+def get_shifts():
+    location = request.args.get('location')
+    first_name = request.args.get('first_name')
+    last_name = request.args.get('last_name')
+    date = request.args.get('date')
+
+    user_info = find_user_by_name(location, first_name, last_name)
+    if not user_info:
+        return jsonify({"error": "User not found."}), 404
+
+    shifts = find_shifts_for_user(user_info['id'], date)
+    return jsonify(shifts)
+
+@app.route('/edit_shift', methods=['POST'])
+def edit_shift():
+    data = request.json
+    location = data['location']
+    clock_in_id = data['clock_in_id']
+    clock_out_id = data['clock_out_id']
+    new_start_time = data['new_start_time']
+    new_end_time = data['new_end_time']
+
+    result = edit_work_hours(location, clock_in_id, clock_out_id, new_start_time, new_end_time)
+    return jsonify(result)
+
+@app.route('/remove_shift', methods=['DELETE'])
+def remove_shift():
+    data = request.json
+    location = data['location']
+    clock_in_id = data['clock_in_id']
+    clock_out_id = data['clock_out_id']
+
+    result = remove_shift(location, clock_in_id, clock_out_id)
+    return jsonify(result)
+
+@app.route('/add_shift', methods=['POST'])
+def add_shift():
+    data = request.json
+    location = data['location']
+    first_name = data['first_name']
+    last_name = data['last_name']
+    start_time = data['start_time']
+    end_time = data['end_time']
+
+    result = add_shift(location, first_name, last_name, start_time, end_time)
+    return jsonify(result)
+
+if __name__ == '__main__':
+    app.run(debug=True)
